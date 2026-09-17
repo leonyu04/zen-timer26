@@ -1,0 +1,2019 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<link rel="manifest" href="manifest.json">
+<!-- 針對蘋果 iPhone 的全螢幕與圖示支援 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon.png">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fliqlo Style Flip Clock & Zen Timer</title>
+
+<!-- 引入 Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Noto+Serif+JP:wght@400;700&family=Playfair+Display+SC:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --current-stage-color: #ffffff; 
+    }
+
+    body {
+        margin: 0; padding: 0;
+        background-color: #000000;
+        display: flex; justify-content: center; align-items: center;
+        height: 100dvh; width: 100vw;
+        overflow: hidden;
+        font-family: 'Oswald', sans-serif; 
+        transition: background-color 2s ease;
+    }
+
+    /* ===== 動態宇宙背景模組 ===== */
+    #universe-layer { 
+        position: absolute; inset: 0; z-index: -2; pointer-events: none; 
+        transition: opacity 0.5s ease;
+    }
+    
+    #stars-container {
+        position: absolute; inset: -100%; 
+        transform-origin: 20% 80%;
+        animation: rotateSky 14400s linear infinite; 
+        opacity: 0; transition: opacity 2s ease;
+    }
+    /* 修正物理引擎：台灣（北半球）星空為逆時針旋轉 */
+    @keyframes rotateSky { 100% { transform: rotate(-360deg); } }
+
+    /* 魔法：利用少數圖層發散無數陰影，取代原本的 .star 設定 */
+    .star-layer {
+        position: absolute;
+        top: 0; left: 0;
+        background: transparent;
+        border-radius: 50%;
+    }
+
+    @keyframes twinkleLayer {
+    0% { opacity: 0.15; }
+    100% { opacity: 1; }
+}
+
+    /* 調整北極星：縮小尺寸、柔化光暈，並加入微弱的呼吸動畫讓它融入星空 */
+    #north-star {
+        position: absolute; top: 80%; left: 20%;
+        width: 2px; height: 2px; border-radius: 50%;
+        background-color: var(--current-stage-color);
+        box-shadow: 0 0 6px var(--current-stage-color), 0 0 10px var(--current-stage-color);
+        transform: translate(-50%, -50%);
+        z-index: -1; opacity: 0; 
+        transition: opacity 2s ease, background-color 1s ease, box-shadow 1s ease;
+        animation: northStarPulse 6s infinite alternate ease-in-out;
+    }
+    
+    @keyframes northStarPulse {
+        0% { filter: brightness(0.5); }
+        100% { filter: brightness(1.2); }
+    }
+    /* 鎖定狀態下的環境自訂列 */
+    .theme-toggle-row.locked {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+    .theme-toggle-row.locked input {
+        pointer-events: none;
+    }
+
+    #fireflies-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 10s ease; }
+    .firefly {
+        position: absolute; width: 3px; height: 3px; border-radius: 50%;
+        background-color: rgba(170, 255, 100, 0.9);
+        box-shadow: 0 0 8px rgba(170, 255, 100, 1);
+        animation: flicker 3s ease-in-out infinite alternate;
+    }
+    /* 🌟 新藍螢火蟲與沉金螢火蟲的特殊發光特效（更亮、更大） */
+    /* 🌟 新增的呼吸閃爍特效動畫 */
+@keyframes rarePulse {
+    0% { transform: scale(1); opacity: 0.6; filter: brightness(1); }
+    100% { transform: scale(1.3); opacity: 1; filter: brightness(1.6); }
+}
+
+/* 🌟 新藍螢火蟲：取消十字特效，大小不變，改為精緻的發亮藍 */
+.firefly.rare-blue {
+    background-color: #80d8ff; /* 發亮藍核心 */
+    box-shadow: 0 0 8px #00b0ff, 0 0 15px rgba(0, 120, 255, 0.8);
+    animation: rarePulse 1.2s ease-in-out infinite alternate;
+    z-index: 2;
+}
+/* 確保徹底移除上一版的十字星芒 */
+.firefly.rare-blue::after, .firefly.rare-blue::before {
+    display: none;
+}
+
+/* 🌟 沉金螢火蟲：本體改為與尾焰一致的極致亮金色 */
+.firefly.rare-gold {
+    background-color: #ffea00; /* 本體變成亮金色 */
+    box-shadow: 0 0 10px #ffea00, 0 0 20px #ffc400, 0 0 35px rgba(255, 171, 0, 0.8);
+    animation: rarePulse 0.8s ease-in-out infinite alternate;
+    z-index: 2;
+}
+
+/* 沉金尾焰 (維持你上一版成功的設定) */
+.gold-trail {
+    position: absolute; width: 2.5px; height: 2.5px; border-radius: 50%;
+    background-color: #ffea00; box-shadow: 0 0 8px #ffc400;
+    pointer-events: none; z-index: 1;
+    animation: fadeTrail 1.2s ease-out forwards;
+}
+@keyframes fadeTrail {
+    0% { opacity: 0.9; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.2) translateY(-15px); }
+}
+    
+    @keyframes flicker { 0% { opacity: 0.2; } 100% { opacity: 1; } }
+
+    #shooting-stars-layer { position: absolute; inset: 0; opacity: 0; transition: opacity 2s ease; overflow: hidden;}
+    .shooting-star { position: absolute; height: 1.5px; transform-origin: right center; opacity: 0; z-index: -1; border-radius: 2px 0 0 2px; }
+    .shooting-star::before { content: ''; position: absolute; right: 0; top: 50%; transform: translate(50%, -50%); border-radius: 50%; }
+
+    .shooting-star.normal { background: linear-gradient(to left, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%); }
+    .shooting-star.normal::before { width: 2.5px; height: 2.5px; background: #fff; box-shadow: 0 0 4px 0.5px rgba(255,255,255,0.8); }
+
+    .shooting-star.fire-green { background: linear-gradient(to left, rgba(110,255,120,0.9) 0%, rgba(110,255,120,0) 100%); height: 2px; }
+    .shooting-star.fire-green::before { width: 3.5px; height: 3.5px; background: #eaffeb; box-shadow: 0 0 8px 1px #6eff78; }
+
+    .shooting-star.fire-orange { background: linear-gradient(to left, rgba(255,140,0,0.9) 0%, rgba(255,140,0,0) 100%); height: 2px; }
+    .shooting-star.fire-orange::before { width: 3.5px; height: 3.5px; background: #fff1dc; box-shadow: 0 0 10px 1.5px #ffa500; }
+
+    .shooting-star.fire-bright { background: linear-gradient(to left, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%); height: 2px; }
+    .shooting-star.fire-bright::before { width: 4px; height: 4px; background: #fff; box-shadow: 0 0 12px 2px #fff; }
+
+    .satellite {
+        position: absolute; width: 2.5px; height: 2.5px; background-color: #ffffff; border-radius: 50%;
+        box-shadow: 0 0 4px rgba(255, 255, 255, 0.8); z-index: -1;
+    }
+
+    #galaxy-layer {
+        position: absolute; inset: -20%; opacity: 0; transition: opacity 3s ease;
+        background: radial-gradient(circle at 30% 40%, rgba(26, 42, 108, 0.15) 0%, transparent 50%),
+                    radial-gradient(circle at 70% 60%, rgba(178, 31, 31, 0.08) 0%, transparent 50%),
+                    radial-gradient(circle at 50% 80%, rgba(253, 187, 45, 0.06) 0%, transparent 50%),
+                    radial-gradient(circle at 60% 30%, rgba(138, 43, 226, 0.12) 0%, transparent 50%); 
+        filter: blur(60px); animation: auroraShift 25s ease-in-out infinite alternate;
+    }
+    @keyframes auroraShift { 0% { filter: blur(60px) hue-rotate(0deg); transform: scale(1); } 100% { filter: blur(80px) hue-rotate(20deg); transform: scale(1.05) translate(2%, 2%); } }
+
+    .backlight {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 45vw; height: 45vh; 
+        background-color: var(--backlight-color, transparent); filter: blur(80px); opacity: 0; z-index: 0; pointer-events: none;
+        transition: opacity 1s ease, background-color 2s ease; animation: pulseLight 4s infinite alternate ease-in-out; animation-play-state: paused;
+    }
+    @keyframes pulseLight { 0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; } 100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; } }
+
+    /* ===== 手動選單按鈕 ===== */
+    .menu-btn {
+        position: fixed; top: 25px; width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
+        color: rgba(255,255,255,0.25); cursor: pointer; z-index: 1001; transition: color 0.3s, background 0.3s; border-radius: 8px;
+    }
+    .menu-btn:hover, .menu-btn:active { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.05); }
+    .menu-btn svg { width: 26px; height: 26px; }
+    .left-menu-btn { left: clamp(10px, 3vw, 20px); }
+    .right-menu-btn { right: clamp(10px, 3vw, 20px); }
+
+    /* ===== 主時鐘 UI (完全還原完美比例與黃金對稱) ===== */
+    .clock-container { 
+        position: relative;
+        display: flex;
+        transition: opacity 1s ease, cursor 0.3s; z-index: 10;
+    }
+    
+    .main-cards {
+        display: flex; gap: min(2vw, 2vh); position: relative;
+    }
+
+    .card-wrapper {
+        position: relative; 
+    }
+
+    .flip-unit {
+        position: relative; width: min(48vw, 45vh); height: min(62vw, 56vh);  
+        border-radius: min(3vw, 3vh); background-color: #111111; 
+        perspective: 1000px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.95);
+    }
+    .card {
+        position: absolute; left: 0; width: 100%; height: 50%; background-color: inherit;
+        color: #666666; font-size: min(45vw, 42vh); font-weight: 700; 
+        display: flex; justify-content: center; overflow: hidden;
+    }
+    .card.top { top: 0; align-items: flex-end; transform-origin: bottom; border-radius: min(3vw, 3vh) min(3vw, 3vh) 0 0; }
+    .card.bottom { bottom: 0; align-items: flex-start; transform-origin: top; border-radius: 0 0 min(3vw, 3vh) min(3vw, 3vh); }
+    .card.top span { transform: translateY(calc(50% - 3.5%)); display: inline-block; }
+    .card.bottom span { transform: translateY(calc(-50% - 3.5%)); display: inline-block; }
+    .flip-unit::after {
+        content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px;
+        background-color: #000000; transform: translateY(-50%); z-index: 5;
+    }
+
+    .flip-unit.tiny {
+        position: absolute;
+        left: 100%;
+        margin-left: min(2vw, 2vh);
+        bottom: 0;
+        width: min(10vw, 8.5vh); height: min(14vw, 12vh); 
+        background-color: transparent; z-index: 20; box-shadow: none; 
+        transition: clip-path 0.5s ease;
+    }
+    .flip-unit.tiny.flask-shape {
+        clip-path: url(#flask-mask); -webkit-clip-path: url(#flask-mask);
+    }
+
+    .water-container { position: absolute; inset: 0; background-color: #1a1a1a; overflow: hidden; z-index: 1; opacity: 0; transition: opacity 1s ease; }
+    .water-layer-1, .water-layer-2 { position: absolute; left: -50%; width: 200%; height: 200%; top: 100%; border-radius: 40%; }
+    
+    .water-layer-1 { background-color: rgba(220, 220, 220, 0.35); animation: spinWave 5s linear infinite; z-index: 3; }
+    .water-layer-2 { background-color: rgba(60, 60, 60, 0.9); border-radius: 43%; animation: spinWave 7s linear infinite; z-index: 2; }
+    
+    @keyframes spinWave {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .tiny-sec-text {
+        position: absolute; top: 15%; height: 85%; width: 100%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: min(4vw, 3.5vh); color: #666666; font-weight: 700; z-index: 10;
+        font-family: 'Oswald', sans-serif; text-shadow: 0 2px 5px rgba(0,0,0,0.95); 
+        transition: opacity 0.5s ease;
+    }
+    .flip-unit.tiny::after { display: none; }
+
+    .flip-top, .flip-bottom { z-index: 10; }
+    .flip-unit:not(.tiny) .flip-top { animation: flipTop 0.4s ease-in forwards; }
+    .flip-unit:not(.tiny) .flip-bottom { animation: flipBottom 0.4s ease-out 0.4s forwards; transform: rotateX(90deg); }
+
+    @keyframes flipTop {
+        0% { transform: rotateX(0deg); }
+        100% { transform: rotateX(-90deg); }
+    }
+    @keyframes flipBottom {
+        0% { transform: rotateX(90deg); }
+        100% { transform: rotateX(0deg); }
+    }
+
+    .ampm {
+        position: absolute; bottom: min(1.5vw, 1.5vh); left: min(2vw, 2vh); color: #555555; 
+        font-size: min(4vw, 3.5vh); font-weight: 700; letter-spacing: 1px; z-index: 20; 
+        transition: opacity 0.5s ease; pointer-events: none;
+    }
+
+    .mode-toggle {
+        position: fixed; bottom: min(3vw, 25px); right: min(3vw, 30px);
+        width: min(6vw, 45px); height: min(6vw, 45px); font-size: min(4.5vw, 35px);
+        display: flex; justify-content: center; align-items: center; opacity: 0.3; cursor: pointer; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 100;
+    }
+    .mode-toggle:hover { opacity: 0.9; transform: scale(1.1); }
+
+    .env-indicator {
+        position: fixed; bottom: min(3vw, 25px); right: min(12vw, 90px);
+        width: min(6vw, 45px); height: min(6vw, 45px); font-size: min(4.5vw, 30px);
+        display: flex; justify-content: center; align-items: center; opacity: 0.4; cursor: default; transition: opacity 0.3s ease, transform 0.3s ease; z-index: 100;
+    }
+    .env-indicator:hover { opacity: 0.9; transform: scale(1.1); }
+
+    .toast {
+        position: fixed; top: 10%; left: 50%; transform: translateX(-50%) translateY(-20px);
+        background-color: rgba(20, 20, 20, 0.85); color: #ffffff; padding: min(2vw, 15px) min(4vw, 30px); border-radius: 30px;
+        font-size: min(3.5vw, 18px); font-family: 'Noto Serif JP', serif; letter-spacing: 1px; opacity: 0; visibility: hidden;
+        transition: opacity 1s ease, transform 1s ease; z-index: 1000; box-shadow: 0 5px 20px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); white-space: nowrap; display: flex; align-items: center;
+    }
+    .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+
+    /* 泡泡與勵志短句系統 */
+    #bubbles-container { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+    .bubble-wrapper { position: absolute; pointer-events: auto; opacity: 0; transition: opacity 0.8s ease; animation: floatBubble 6s ease-in-out infinite alternate; }
+    .bubble-wrapper.show { opacity: 1; }
+    .soul-bubble {
+        background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.15); color: #ddd; display: flex; align-items: center; justify-content: center;
+        text-align: center; font-family: 'Noto Serif JP', serif; cursor: pointer; user-select: none; padding: 10px; box-sizing: border-box;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 0 10px rgba(255,255,255,0.05); animation: wobble 4s ease-in-out infinite alternate; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.2s ease;
+    }
+    .soul-bubble.lg { width: clamp(80px, 13vw, 100px); height: clamp(80px, 13vw, 100px); font-size: clamp(13px, 1.8vw, 15px); }
+    .soul-bubble.sm { width: clamp(60px, 10vw, 80px); height: clamp(60px, 10vw, 80px); font-size: clamp(11px, 1.4vw, 13px); }
+    .soul-bubble:hover { filter: brightness(1.3); transform: scale(1.05); }
+    .soul-bubble:active { transform: scale(0.9); }
+    
+    @keyframes floatBubble { 0% { transform: translateY(0) translateX(0); } 100% { transform: translateY(-30px) translateX(15px); } }
+    @keyframes wobble { 0% { border-radius: 40% 60% 50% 50% / 50% 50% 60% 40%; } 50% { border-radius: 60% 40% 50% 50% / 50% 50% 40% 60%; } 100% { border-radius: 50% 50% 60% 40% / 60% 40% 50% 50%; } }
+    
+    .bubble-burst { position: absolute; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%); background: radial-gradient(circle, var(--burst-color) 0%, transparent 60%); animation: burstGlow 0.6s ease-out forwards; }
+    @keyframes burstGlow { 0% { width: 10px; height: 10px; opacity: 0.8; } 100% { width: var(--burst-size); height: var(--burst-size); opacity: 0; } }
+    .floating-luck-text { position: absolute; pointer-events: none; z-index: 200; color: #fff; font-size: clamp(16px, 2.5vw, 18px); font-family: 'Noto Serif JP', serif; font-weight: bold; text-shadow: 0 2px 5px rgba(0,0,0,0.8); animation: floatUpFadeOut 1.5s ease-out forwards; }
+    @keyframes floatUpFadeOut { 0% { opacity: 1; transform: translate(-50%, -50%); } 100% { opacity: 0; transform: translate(-50%, -400%); } }
+
+    /* 勵志短句容器 (下移避免卡字卡) */
+    #quote-container {
+        position: fixed; bottom: clamp(20px, 8vh, 60px); left: 50%; transform: translateX(-50%); width: 85vw; max-width: 600px;
+        text-align: center; color: rgba(255,255,255,0.7); font-size: clamp(14px, 3.5vw, 16px); font-family: 'Noto Serif JP', serif;
+        letter-spacing: 1.5px; line-height: 1.8; opacity: 0; visibility: hidden; transition: opacity 1s ease, visibility 1s;
+        z-index: 40; text-shadow: 0 2px 10px rgba(0,0,0,0.8); pointer-events: none;
+    }
+    #quote-container.show { opacity: 1; visibility: visible; }
+
+    /* ===== 抽屜 UI ===== */
+    .drawer { 
+        position: fixed; top: 0; width: 320px; height: 100vh; background-color: rgba(15, 15, 15, 0.85); backdrop-filter: blur(15px); z-index: 1000; 
+        transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1), right 0.4s cubic-bezier(0.16, 1, 0.3, 1); 
+        font-family: 'Noto Serif JP', serif; color: #dcdcdc; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box;
+    }
+    .drawer.left-drawer { left: -350px; border-right: 1px solid rgba(255, 255, 255, 0.05); }
+    .drawer.left-drawer.open { left: 0; }
+    
+    .drawer.right-drawer { right: -350px; border-left: 1px solid rgba(255, 255, 255, 0.05); padding: 30px 15px; } /* 稍微減少右側 padding */
+    .drawer.right-drawer.open { right: 0; }
+    
+    /* 置中標題設定 */
+    .header-row { position: relative; display: flex; justify-content: center; align-items: center; margin-top: -10px; margin-bottom: 15px; min-height: 32px; }
+    .drawer h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #8B7355; text-align: center; }
+    .settings-btn { position: absolute; right: 0; background: none; border: none; color: #8B7355; font-size: 20px; cursor: pointer; transition: transform 0.2s; padding: 0; }
+    .settings-btn:hover { transform: rotate(90deg); }
+
+    .drawer-view-container { position: relative; flex: 1; }
+    /* 左右間距微調，騰出空間給不換行文字 */
+    .drawer-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 40px 20px; box-sizing: border-box; display: flex; flex-direction: column; transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s, visibility 0.3s; overflow-y: auto; overflow-x: hidden; }
+    .drawer-view::-webkit-scrollbar { width: 4px; }
+    .drawer-view::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+    #view-records { transform: translateX(0); opacity: 1; visibility: visible; }
+    #view-records.hidden { transform: translateX(-120%); opacity: 0; visibility: hidden; }
+    #view-settings { transform: translateX(120%); opacity: 0; visibility: hidden; }
+    #view-settings.active { transform: translateX(0); opacity: 1; visibility: visible; }
+    
+    .drawer-summary { background: rgba(255, 255, 255, 0.04); padding: 12px 15px; border-radius: 8px; margin-bottom: 10px; font-size: 15px; color: #666666; border: 1px solid rgba(255,255,255,0.08); letter-spacing: 1px; line-height: 1.6; }
+    .drawer-summary.last { margin-bottom: 20px; }
+    .drawer-summary .summary-date { font-family: 'Playfair Display SC', serif; font-size: 12px; color: #888; margin-bottom: 5px; letter-spacing: 1px; text-transform: uppercase;}
+    .playfair-num { font-family: 'Playfair Display SC', serif; font-weight: 700; color: #ffffff; }
+    .sub-time-unit { font-family: 'Playfair Display SC', serif; font-weight: 400; color: #666666; font-size: 13px; margin: 0 2px; text-transform: lowercase;}
+    .sub-time-cn { font-family: 'Noto Serif JP', serif; font-size: 12px; font-weight: 400; color: #666666;}
+    
+    .subject-list { flex: 1; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .subject-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); cursor: grab; transition: background 0.2s, transform 0.1s; border: 1px solid transparent; user-select: none; }
+    .subject-item:active { cursor: grabbing; }
+    .subject-item:hover { background: rgba(255, 255, 255, 0.08); }
+    .subject-item.active { background: rgba(139, 115, 85, 0.15); border-color: rgba(139, 115, 85, 0.5); }
+    .subject-item.dragging { opacity: 0.5; background: rgba(255,255,255,0.1); }
+    .subject-item.over { border-top: 2px solid #8B7355; }
+    
+    .sub-info { display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+    .sub-name { font-size: 16px; letter-spacing: 1px; font-weight: 700; color: #b5b5b5; display: flex; align-items: center;}
+    .zen-dot { display: inline-block; font-size: 12px; margin-right: 8px; line-height: 1; text-shadow: 0 0 6px currentColor; }
+    .running-tag { font-size: 12px; opacity: 0.75; font-weight: 400; color: #b5b5b5; margin-left: 6px;}
+    
+    .sub-actions { display: flex; gap: 8px; align-items: center; }
+    .sub-action-btn { background: none; border: none; color: #666; font-size: 18px; cursor: pointer; transition: color 0.2s; padding: 0; outline: none; }
+    .sub-action-btn.edit { font-size: 16px; }
+    .sub-action-btn.edit:hover { color: #b5b5b5; }
+    .sub-action-btn.delete:hover { color: #e74c3c; }
+    .sub-action-btn.confirm-delete { color: #e74c3c; font-size: 12px; font-weight: bold; background: rgba(231,76,60,0.15); border-radius: 4px; padding: 4px 8px; letter-spacing: 1px; }
+
+    .add-subject { display: flex; gap: 10px; margin-top: auto;}
+    .add-subject input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; color: #fff; font-family: 'Noto Serif JP', serif; outline: none; }
+    .add-subject input::placeholder { color: #555; }
+    .add-subject button { background: rgba(139, 115, 85, 0.3); border: 1px solid rgba(139, 115, 85, 0.5); color: #fff; border-radius: 6px; padding: 0 15px; cursor: pointer; font-size: 18px; transition: background 0.2s; }
+    .add-subject button:hover { background: rgba(139, 115, 85, 0.6); }
+
+    .theme-toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 12px; margin-bottom: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255,255,255,0.08); }
+    /* 強制不換行與間距調整 */
+    .theme-toggle-label { font-size: 14px; color: #b5b5b5; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+    
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: #666; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #8B7355; }
+    input:checked + .slider:before { transform: translateX(20px); background-color: #fff; }
+
+    .unlock-badge { position: absolute; top: 50%; right: 5px; width: 8px; height: 8px; background-color: #e74c3c; border-radius: 50%; box-shadow: 0 0 10px #e74c3c; }
+    .mobile-badge { top: 6px; right: 6px; width: 8px; height: 8px; }
+
+    .action-btn-group { display: flex; gap: 10px; margin-top: 5px; }
+    .action-btn { flex: 1; background: rgba(139, 115, 85, 0.2); border: 1px solid rgba(139, 115, 85, 0.4); color: #b5b5b5; padding: 10px 0; border-radius: 8px; cursor: pointer; font-family: 'Noto Serif JP', serif; font-size: 14px; transition: all 0.2s; font-weight: 700; letter-spacing: 1px; }
+    .action-btn:hover { background: rgba(139, 115, 85, 0.4); color: #fff; }
+    .action-btn.active { background: rgba(139, 115, 85, 0.7); color: #fff; border-color: #8B7355; }
+
+</style>
+</head>
+<body>
+    <svg width="0" height="0" style="position: absolute;">
+        <defs>
+            <clipPath id="flask-mask" clipPathUnits="objectBoundingBox">
+                <path d="M 0.3 0 C 0.4 0.02, 0.6 0.02, 0.7 0 C 0.65 0.08, 0.58 0.12, 0.55 0.15 C 0.9 0.3, 0.95 0.6, 0.65 1.0 L 0.35 1.0 C 0.05 0.6, 0.1 0.3, 0.45 0.15 C 0.42 0.12, 0.35 0.08, 0.3 0 Z"></path>
+            </clipPath>
+        </defs>
+    </svg>
+
+    <div class="menu-btn left-menu-btn" onclick="toggleDrawer('left')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+    </div>
+    <div class="menu-btn right-menu-btn" id="mobile-right-btn" onclick="toggleDrawer('right')" style="display: none;">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        <div class="unlock-badge mobile-badge" id="mobile-unlock-badge" style="display: none;"></div>
+    </div>
+
+    <div id="universe-layer">
+        <div id="stars-container"><div id="stars-layer"></div></div>
+        <div id="fireflies-layer"></div><div id="north-star"></div><div id="galaxy-layer"></div><div id="shooting-stars-layer"></div>
+    </div>
+
+    <div class="backlight" id="backlight"></div>
+    <div id="bubbles-container"></div>
+    <div id="quote-container"></div>
+
+    <div class="drawer left-drawer" id="drawer">
+        <div class="drawer-view-container">
+            <div class="drawer-view" id="view-records">
+                <div class="header-row">
+                    <h3>專注記錄</h3>
+                    <button class="settings-btn" onclick="toggleSettingsView(true)" title="設定與簡介">⚙️</button>
+                </div>
+                <div class="drawer-summary">
+                    <div id="summary-date" class="summary-date"></div>
+                    <div>今日總計：<span id="total-sessions" class="playfair-num">0</span> <span class="sub-time-cn">次</span> / <span id="total-time"></span></div>
+                    <div style="margin-top: 6px;">
+                        今日幸運值：<span id="luck-value" class="playfair-num" style="color: #A9B7AA;">0</span> <span class="sub-time-cn">點</span>
+                        <span style="font-size: 12.5px; color: #888; margin-left: 5px;">(加成 +<span id="today-luck-bonus" class="playfair-num">0.0</span>%)</span>
+                    </div>
+                    <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 13px; color: #888;">
+                        昨日幸運結算：<span id="yesterday-luck-val" class="playfair-num" style="color:#b5b5b5;">0</span> 點<br>
+                        ✨ 稀有流星機率加成：+<span id="yesterday-luck-bonus" class="playfair-num" style="color:#b5b5b5;">0.0</span>%
+                    </div>
+                </div>
+
+                <div class="drawer-summary last">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                        <div style="color: #8B7355; font-size: 14px; font-weight: bold; letter-spacing: 1px;">🌠 今日星象預測</div>
+                        <div id="meteor-streak-badge" style="background: rgba(255, 140, 0, 0.15); color: #ff9800; font-size: 11px; padding: 2px 8px; border-radius: 12px; font-weight: bold; display: none;">🔥 0 連勝</div>
+                    </div>
+                    <div id="meteor-forecast-text" style="font-size: 14px; line-height: 1.6; color: #b5b5b5;"></div>
+                </div>
+
+                <div class="subject-list" id="subject-list"></div>
+                <div class="add-subject">
+                    <input type="text" id="new-sub-input" placeholder="新增科目 (例如: IC 設計)">
+                    <button onclick="addSubject()">+</button>
+                </div>
+            </div>
+
+            <div class="drawer-view" id="view-settings">
+                <div class="header-row">
+                    <h3>設定</h3>
+                    <button class="settings-btn" onclick="toggleSettingsView(false)" title="返回" style="font-size:32px; font-weight: 300;">×</button>
+                </div>
+                
+                <div class="theme-toggle-row">
+                    <span class="theme-toggle-label">全螢幕模式</span>
+                    <label class="switch"><input type="checkbox" id="chk-fullscreen" onchange="toggleFullScreen()"><span class="slider"></span></label>
+                </div>
+                
+                <!-- 雙開關排版，強制不換行並對齊 Padding -->
+                <div style="display: flex; gap: 10px; margin-bottom: 8px; width: 100%;">
+                    <div class="theme-toggle-row" style="flex: 1; margin-bottom: 0; padding: 12px 10px; min-width: 0;">
+                        <span class="theme-toggle-label" style="font-size: 13.5px; white-space: nowrap;">24小時制</span>
+                        <label class="switch" style="transform: scale(0.75); transform-origin: right; flex-shrink: 0;"><input type="checkbox" id="chk-24hr" onchange="toggle24Hr()"><span class="slider"></span></label>
+                    </div>
+                    <div class="theme-toggle-row" style="flex: 1; margin-bottom: 0; padding: 12px 10px; min-width: 0;">
+                        <span class="theme-toggle-label" style="font-size: 13.5px; white-space: nowrap;">顯示秒數</span>
+                        <label class="switch" style="transform: scale(0.75); transform-origin: right; flex-shrink: 0;"><input type="checkbox" id="chk-show-seconds" onchange="toggleShowSeconds()"><span class="slider"></span></label>
+                    </div>
+                </div>
+
+                <!-- ☁️ Google 雲端備份與還原專區 -->
+                <div class="theme-toggle-row" style="margin-bottom: 8px; justify-content: space-between; align-items: center;">
+                    <span class="theme-toggle-label" style="color: #b5b5b5;">雲端同步資料</span>
+                    <div style="display: flex; gap: 6px;">
+                        <button onclick="backupToGoogleDrive()" style="background: rgba(70, 130, 180, 0.3); border: 1px solid rgba(70, 130, 180, 0.5); color: #fff; border-radius: 4px; padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: 'Noto Serif JP', serif; transition: background 0.2s;">備份</button>
+                        <button onclick="restoreFromGoogleDrive()" style="background: rgba(60, 179, 113, 0.3); border: 1px solid rgba(60, 179, 113, 0.5); color: #fff; border-radius: 4px; padding: 5px 8px; cursor: pointer; font-size: 12px; font-family: 'Noto Serif JP', serif; transition: background 0.2s;">還原</button>
+                    </div>
+                </div>
+
+                <!-- 🎁 禮包兌換碼專區 (修正間距與外觀對齊) -->
+                <div class="theme-toggle-row" style="margin-bottom: 8px; justify-content: space-between;">
+                    <span class="theme-toggle-label" style="color: #b5b5b5;">禮包碼兌換</span>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input type="text" id="redeem-input" placeholder="輸入兌換碼" style="width: 105px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 5px 8px; color: #fff; font-family: 'Noto Serif JP', serif; outline: none; font-size: 12px;">
+                        <button onclick="redeemCode()" style="background: rgba(139, 115, 85, 0.3); border: 1px solid rgba(139, 115, 85, 0.5); color: #fff; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-family: 'Noto Serif JP', serif; transition: background 0.2s; font-weight: 700; letter-spacing: 1px;">兌換</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; color: #b5b5b5; font-size: 11.5px; line-height: 1.6; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+                    <h4 style="color: #8B7355; margin: 0 0 12px 0; font-size: 14px; letter-spacing: 1px;">📖 操作指南與生態時刻表</h4>
+                    
+                    <!-- 基礎操作與系統說明 (使用短句條列，避免換行尷尬) -->
+                    <ul style="padding-left: 18px; margin: 0 0 18px 0; display: flex; flex-direction: column; gap: 6px; color: #a0a0a0;">
+                        <li><strong>計時操作：</strong>空白鍵暫停 / 繼續，右鍵雙擊歸零。</li>
+                        <li><strong>任務管理：</strong>左側可新增專注科目，長按即可拖曳排序。</li>
+                        <li><strong>系統防護：</strong>重整不漏秒，圖鑑與時數皆可備份至雲端。</li>
+                    </ul>
+                    
+                    <!-- 垂直時間軸 (Timeline) -->
+                    <div style="margin: 10px 0 15px 10px; border-left: 2px solid rgba(139, 115, 85, 0.3); padding-left: 15px; position: relative; display: flex; flex-direction: column; gap: 16px;">
+                        
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; background: #1a1a1a; border: 2px solid #8B7355; border-radius: 50%; box-sizing: border-box;"></div>
+                            <strong style="color:#fff; font-family:'Oswald', sans-serif; font-size:13px; letter-spacing: 0.5px;">25 <span style="font-size:10px; color:#888;">MIN</span> <span style="font-size:11px; color:#8B7355; font-family:'Noto Serif JP', serif; font-weight:normal;">(專注循環)</span></strong><br>
+                            <span style="color:#a0a0a0;">燒瓶滿水觸發進化，變換專屬背光 (種子➔群山)</span>
+                        </div>
+                        
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; background: #1a1a1a; border: 2px solid #aaff64; border-radius: 50%; box-sizing: border-box; box-shadow: 0 0 6px rgba(170, 255, 100, 0.3);"></div>
+                            <strong style="color:#fff; font-family:'Oswald', sans-serif; font-size:13px; letter-spacing: 0.5px;">30 <span style="font-size:10px; color:#888;">MIN</span></strong><br>
+                            <span style="color:#a0a0a0;">喚醒森林的流螢點點 ✨</span>
+                        </div>
+                        
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; background: #1a1a1a; border: 2px solid #80d8ff; border-radius: 50%; box-sizing: border-box; box-shadow: 0 0 8px rgba(0, 176, 255, 0.5);"></div>
+                            <strong style="color:#fff; font-family:'Oswald', sans-serif; font-size:13px; letter-spacing: 0.5px;">60 <span style="font-size:10px; color:#888;">MIN</span></strong><br>
+                            <span style="color:#a0a0a0;">邂逅「星藍 / 晨金」稀有螢火蟲</span>
+                        </div>
+                        
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; background: #1a1a1a; border: 2px solid #ff9800; border-radius: 50%; box-sizing: border-box; box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);"></div>
+                            <strong style="color:#fff; font-family:'Oswald', sans-serif; font-size:13px; letter-spacing: 0.5px;">150 <span style="font-size:10px; color:#888;">MIN</span></strong><br>
+                            <span style="color:#a0a0a0;">星空降下絕美流星雨 🌠</span>
+                        </div>
+                        
+                        <!-- 修正：把 background 改成 #1a1a1a，讓它中間變黑色的空心圓 -->
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -22px; top: 3px; width: 12px; height: 12px; background: #1a1a1a; border: 2px solid #8B7355; border-radius: 50%; box-sizing: border-box; box-shadow: 0 0 10px rgba(184, 166, 255, 0.4);"></div>
+                            <strong style="color:#fff; font-family:'Oswald', sans-serif; font-size:13px; letter-spacing: 0.5px;">240 <span style="font-size:10px; color:#888;">MIN</span></strong><br>
+                            <span style="color:#a0a0a0;">解鎖終極彩蛋「觀賞模式與控制台」 🌌</span>
+                        </div>
+                        
+                    </div>
+
+                    <!-- 修正：加上 <ul> 與 <li>，讓它前面出現點點，並且維持在最下方 -->
+                    <ul style="padding-left: 18px; margin: 0; display: flex; flex-direction: column; color: #a0a0a0;">
+                        <li><strong>星塵傳承：</strong>點擊泡泡累積幸運值，會提升明日遇見流星的機率。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="drawer right-drawer" id="theme-drawer" style="display: none;">
+        <div class="drawer-view-container">
+            <div class="drawer-view">
+                <div class="header-row" style="margin-bottom: 5px;">
+                    <h3>環境自訂</h3>
+                </div>
+                <!-- 強制不換行與微調提示字體 -->
+                <p style="font-size:12px; color:#888; margin-top:0; margin-bottom:15px; text-align:center; white-space: nowrap; letter-spacing: -0.2px;">控制台已解鎖，支援計時器及一般時鐘套用</p>
+                
+                <div class="theme-toggle-row">
+                    <span class="theme-toggle-label">螢火蟲 (Fireflies)</span>
+                    <label class="switch"><input type="checkbox" id="chk-fireflies"><span class="slider"></span></label>
+                </div>
+                <div class="theme-toggle-row">
+                    <span class="theme-toggle-label">滿天星空 (Stars)</span>
+                    <label class="switch"><input type="checkbox" id="chk-stars"><span class="slider"></span></label>
+                </div>
+                <div class="theme-toggle-row">
+                    <span class="theme-toggle-label">流星 (Shooting Stars)</span>
+                    <label class="switch"><input type="checkbox" id="chk-shooting"><span class="slider"></span></label>
+                </div>
+                <div class="theme-toggle-row">
+                    <span class="theme-toggle-label">極光銀河 (Galaxy)</span>
+                    <label class="switch"><input type="checkbox" id="chk-galaxy"><span class="slider"></span></label>
+                </div>
+
+                <div class="action-btn-group">
+                    <button id="btn-hide-clock" class="action-btn" onclick="toggleHideClock()">隱藏時鐘</button>
+                    <button id="btn-view-mode" class="action-btn" onclick="enterViewMode()">觀賞模式</button>
+                </div>
+
+                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.08); margin: 20px 0 15px 0;">
+                <h4 style="margin: 0 0 10px 0; color:#8B7355; font-size: 15px; letter-spacing: 1px; text-align:center;">我的收藏</h4>
+                <div id="meteor-collection-list" style="font-size: 14px; color: #b5b5b5; display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding-right:5px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast">
+        <span id="toast-text"></span>
+    </div>
+
+    <div class="clock-container" id="clock-area" title="左鍵/空白鍵：暫停或繼續&#10;右鍵：雙擊重置計時">
+        
+        <div class="main-cards">
+            <!-- 包裹小時卡片與 AM/PM 的容器 -->
+            <div class="card-wrapper">
+                <div class="flip-unit" id="hours"></div>
+                <div class="ampm" id="ampm">PM</div>
+            </div>
+
+            <div class="flip-unit" id="minutes"></div>
+        </div>
+        
+        <div class="flip-unit tiny" id="seconds">
+            <div class="tiny-sec-text" id="sec-text">00</div>
+            <div class="water-container" id="water-container">
+                <div class="water-layer-1" id="water-wave-1"></div>
+                <div class="water-layer-2" id="water-wave-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="env-indicator" id="env-indicator" title="特殊事件：純淨白光">⚪</div>
+    <div class="mode-toggle" id="toggle-btn" title="切換時鐘 / 正計時">⚪</div>
+
+    <script>
+        let isTimerMode = false;
+        let isPaused = false; 
+        let timerSeconds = parseInt(localStorage.getItem('zenTimerSeconds')) || 0;
+                // 💡 檢查是否有先前重新整理前保存的計時狀態
+let savedTimerMode = localStorage.getItem('zenIsTimerMode') === 'true';
+if (savedTimerMode) {
+    isTimerMode = true;
+    isPaused = true; // 強制設定為暫停狀態
+    timerSeconds = parseInt(localStorage.getItem('zenTimerSeconds')) || 0;
+}
+        let clockInterval, timerInterval;
+        let effectTimeout; 
+        let resetPending = false; 
+        let resetTimeout;         
+        let currentSessionSubjectId = null; 
+        let isClockHidden = false;
+        let isViewingMode = false;
+        let deletePendingId = null; 
+        
+        let is24HourMode = localStorage.getItem('zen24Hour') === 'true';
+        let isShowSecondsMode = localStorage.getItem('zenShowSeconds') !== 'false';
+        
+        document.getElementById('chk-24hr').checked = is24HourMode;
+        document.getElementById('chk-show-seconds').checked = isShowSecondsMode;
+        document.getElementById('sec-text').style.opacity = isShowSecondsMode ? 1 : 0;
+
+        let meteorCollection = {};
+        try {
+            let storedMeteor = localStorage.getItem('zenMeteorCollection');
+            if (storedMeteor) meteorCollection = JSON.parse(storedMeteor) || {};
+        } catch (e) {
+            meteorCollection = {};
+        }
+
+        let subjects = [ { id: Date.now(), name: '預設任務', totalSeconds: 0, sessions: 0 } ];
+        try {
+            let storedSubs = localStorage.getItem('zenSubjects');
+            if (storedSubs) {
+                let parsedSubs = JSON.parse(storedSubs);
+                if (Array.isArray(parsedSubs) && parsedSubs.length > 0) {
+                    subjects = parsedSubs;
+                }
+            }
+        } catch (e) {}
+
+        const SECONDS_PER_CYCLE = 1500;     
+        const THRESHOLD_FIREFLIES = 1800;   
+        const THRESHOLD_STARS = 7200;       
+        const THRESHOLD_SHOOTING = 9000;   
+        const THRESHOLD_GALAXY = 14400;     
+        const UNLOCK_CUSTOM_THRESHOLD = 14400;
+
+        const baseStageIcon = '⚪';
+        const storyLines = [
+            { name: '沉睡種子', icon: '🌰', color: '#8B7355', glow: 'rgba(180, 140, 100, 0.5)' }, 
+            { name: '萌發新芽', icon: '🌱', color: '#4F6B56', glow: 'rgba(100, 150, 110, 0.5)' }, 
+            { name: '舒展枝葉', icon: '🌿', color: '#415945', glow: 'rgba(80, 120, 85, 0.5)' }, 
+            { name: '堅韌花朵', icon: '🌸', color: '#7A4B56', glow: 'rgba(160, 90, 100, 0.5)' }, 
+            { name: '甜美果實', icon: '🍅', color: '#82453A', glow: 'rgba(180, 80, 60, 0.5)' }, 
+            { name: '繁盛群山', icon: '🗻', color: '#2C3E50', glow: 'rgba(60, 100, 150, 0.5)' }  
+        ];
+
+        let highestStageIndex = 0;
+        let luckValue = parseInt(localStorage.getItem('zenLuckValue')) || 0;
+        let yesterdayLuck = parseInt(localStorage.getItem('zenYesterdayLuck')) || 0;
+        const LUCK_CAP = 40; 
+        
+        let totalDailySecondsGlobal = 0;
+
+        let bubbleCooldowns = [0, 0, 0];
+        const BUBBLE_COOLDOWN_MS = 10 * 60 * 1000;
+        const baseBubbleTasks = [ '喝一杯溫水', '望向遠方發呆', '站起來伸展肩頸', '閉眼深呼吸三次', '轉動手腕放鬆', '舒展背部肌肉' ];
+
+        const motivationalQuotes = [
+            "把多巴胺留給目標達成的那一刻。現在的枯燥，正在為未來的自由買單。",
+            "就像肌肉需要承受阻力才能撕裂與生長，此刻的克制，正在鍛鍊你的心智。",
+            "當下逃避的痛苦，未來會加倍奉還。選擇現在吃苦，把真正的享受留給到達理想目標的自己。",
+            "此刻，只有你跟眼前的挑戰。",
+            "焦慮是因為試圖控制未來。收回思緒，你唯一能掌控的，就是按下計時器的這一秒。",
+            "環境再糟，也剝奪不了你的選擇權。把煩惱暫停，專注力在哪裡，你的世界就在哪裡。",
+            "當大腦瘋狂發送放棄的訊號時，記住，你其實只發揮了 40% 的潛力。再多撐五分鐘就好。",
+            "痛苦是短暫的，但撐過去之後刻在腦裡的知識是永遠的。勇敢迎戰。",
+            "讀不懂的挫折感，代表你正在跨越舒適圈的邊界。感到痛苦，就代表你正在升級。",
+            "允許自己短暫失落，但不要允許自己停下腳步。"
+        ];
+        
+        // 🔑 你的 Google API Client ID
+        const CLIENT_ID = '410377047861-quaoeeams1i8oqr1dfsikn8u0hb8tvvp.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+        // 雲端備份主函式
+        function backupToGoogleDrive() {
+            // 收集所有需要備份的 localStorage 資料
+            const backupData = {
+                subjects: subjects,
+                luckValue: luckValue,
+                meteorCollection: meteorCollection,
+                zenInstallDate: localStorage.getItem('zenInstallDate'),
+                zenZen666Date: localStorage.getItem('zenZen666Date'),
+                zenZen666Count: localStorage.getItem('zenZen666Count'),
+                zenIsTimerMode: localStorage.getItem('zenIsTimerMode'), // 👈 新增這行
+                zenTimerSeconds: localStorage.getItem('zenTimerSeconds'), // 👈 新增這行
+                version: 1,
+                timestamp: Date.now()
+            };
+
+            const fileContent = JSON.stringify(backupData, null, 2);
+            const file = new Blob([fileContent], { type: 'application/json' });
+
+            // 呼叫 Google Token 授權視窗
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: async (response) => {
+                    if (response.error !== undefined) {
+                        showTextToast("❌ 授權失敗", 2500);
+                        return;
+                    }
+                    showTextToast("☁️ 正在備份至 Google 雲端...", 2000);
+                    try {
+                        await uploadFileToDrive(response.access_token, file);
+                        showTextToast("✨ 雲端備份成功！", 3000);
+                    } catch (err) {
+                        console.error(err);
+                        showTextToast("❌ 備份上傳失敗", 2500);
+                    }
+                },
+            });
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+
+        // 上傳檔案至 Google 雲端硬碟
+        async function uploadFileToDrive(accessToken, file) {
+            const metadata = {
+                name: 'zen_timer_backup.json',
+                mimeType: 'application/json',
+            };
+
+            // 檢查雲端是否已經有舊的備份檔，有的話先刪除或覆蓋
+            const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='zen_timer_backup.json' and trashed=false`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const searchData = await searchRes.json();
+            
+            let fileId = null;
+            if (searchData.files && searchData.files.length > 0) {
+                fileId = searchData.files[0].id;
+            }
+
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', file);
+
+            let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+            let method = 'POST';
+
+            if (fileId) {
+                url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+                method = 'PATCH';
+            }
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: form,
+            });
+            if (!res.ok) throw new Error('Upload failed');
+        }
+
+        // 雲端還原主函式
+        function restoreFromGoogleDrive() {
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: async (response) => {
+                    if (response.error !== undefined) {
+                        showTextToast("❌ 授權失敗", 2500);
+                        return;
+                    }
+                    showTextToast("🔍 正在尋找雲端備份...", 2000);
+                    try {
+                        const data = await downloadFileFromDrive(response.access_token);
+                        if (!data) {
+                            showTextToast("⚠️ 找不到雲端備份檔案", 3000);
+                            return;
+                        }
+
+                        // 還原資料至 localStorage 與全域變數
+                        if (data.zenTimerSeconds !== undefined) {
+    localStorage.setItem('zenTimerSeconds', data.zenTimerSeconds);
+    timerSeconds = parseInt(data.zenTimerSeconds) || 0;
+}
+if (data.zenIsTimerMode !== undefined) {
+    localStorage.setItem('zenIsTimerMode', data.zenIsTimerMode);
+}
+                        if (data.subjects) {
+                            subjects = data.subjects;
+                            saveSubjects();
+                        }
+                        if (typeof data.luckValue === 'number') {
+                            luckValue = data.luckValue;
+                            localStorage.setItem('zenLuckValue', luckValue);
+                        }
+                        if (data.meteorCollection) {
+                            meteorCollection = data.meteorCollection;
+                            localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+                        }
+                        if (data.zenInstallDate) localStorage.setItem('zenInstallDate', data.zenInstallDate);
+                        if (data.zenZen666Date) localStorage.setItem('zenZen666Date', data.zenZen666Date);
+                        if (data.zenZen666Count) localStorage.setItem('zenZen666Count', data.zenZen666Count);
+
+                        // 重新整理畫面
+                        renderDrawer();
+                        renderMeteorCollection();
+                        showTextToast("✨ 雲端還原成功！", 3500);
+                    } catch (err) {
+                        console.error(err);
+                        showTextToast("❌ 還原失敗", 2500);
+                    }
+                },
+            });
+            tokenClient.requestAccessToken({ prompt: '' });
+        }
+
+        // 從 Google 雲端硬碟下載備份檔
+        async function downloadFileFromDrive(accessToken) {
+            const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='zen_timer_backup.json' and trashed=false`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const searchData = await searchRes.json();
+            
+            if (!searchData.files || searchData.files.length === 0) {
+                return null;
+            }
+
+            const fileId = searchData.files[0].id;
+            const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            
+            if (!fileRes.ok) throw new Error('Download failed');
+            return await fileRes.json();
+        }
+
+        // 🎁 兌換碼處理邏輯（含 ZEN666 每日限領 3 次限制）
+        function redeemCode() {
+            const input = document.getElementById('redeem-input');
+            const code = input.value.trim().toUpperCase(); // 自動轉大寫
+            
+            if (!code) {
+                showTextToast("請先輸入兌換碼", 2000);
+                return;
+            }
+
+            let message = "";
+
+            if (code === 'ZEN666') {
+                // 檢查今日已領取次數
+                const todayStr = new Date().toDateString();
+                let lastClaimDate = localStorage.getItem('zenZen666Date') || "";
+                let claimCount = parseInt(localStorage.getItem('zenZen666Count')) || 0;
+
+                // 如果換了一天，重置次數
+                if (lastClaimDate !== todayStr) {
+                    lastClaimDate = todayStr;
+                    claimCount = 0;
+                }
+
+                if (claimCount >= 3) {
+                    showTextToast("⏳ ZEN666 今日領取額度已滿（每日限 3 次）", 3500);
+                    input.value = '';
+                    return;
+                }
+
+                // 增加次數並記錄
+                claimCount++;
+                localStorage.setItem('zenZen666Date', lastClaimDate);
+                localStorage.setItem('zenZen666Count', claimCount);
+
+                luckValue += 6; // 每次 +6 點幸運值
+                localStorage.setItem('zenLuckValue', luckValue);
+                renderDrawer();
+                message = `🎉 兌換成功！幸運值 +6 (今日已領 ${claimCount}/3 次)`;
+            } 
+            else if (code === 'LUCKYDAY') {
+                luckValue += 10;
+                localStorage.setItem('zenLuckValue', luckValue);
+                renderDrawer();
+                message = "✨ 兌換成功！幸運值 +10";
+            } 
+            else if (code === 'COSMIC') {
+                luckValue += 3;
+                localStorage.setItem('zenLuckValue', luckValue);
+                renderDrawer();
+                message = "🌌 宇宙共鳴！幸運值 +3";
+            } 
+            else if (code === 'METEOR') {
+                meteorCollection['火流星'] = (meteorCollection['火流星'] || 0) + 2;
+                meteorCollection['人造衛星'] = (meteorCollection['人造衛星'] || 0) + 1;
+                localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+                renderMeteorCollection();
+                message = "🌠 獲得禮包：火流星 x2、人造衛星 x1！";
+            }
+            else if (code === 'TK888') {
+                // 設定 5 分鐘後的時間戳記
+                const expireTime = Date.now() + 5 * 60 * 1000;
+                localStorage.setItem('zenTK888Expire', expireTime);
+                
+                // 加入一個帶有 300 分鐘 (18000秒) 的暫時任務
+                subjects.push({ id: Date.now(), name: '體驗卡任務 (5分鐘後消失)', totalSeconds: 18000, sessions: 1 });
+                saveSubjects();
+                renderDrawer();
+                message = "🎁 TK888 兌換成功！已獲得 5 分鐘體驗任務！";
+                
+                // 設定 5 分鐘後自動刪除該任務
+                setTimeout(() => {
+                    subjects = subjects.filter(s => !s.name.includes('體驗卡任務'));
+                    localStorage.removeItem('zenTK888Expire');
+                    if (!subjects.find(s => s.id == activeSubjectId)) activeSubjectId = subjects[0].id; // 如果刪到當前科目則切換回預設
+                    saveSubjects();
+                    renderDrawer();
+                    showTextToast("⏳ 體驗卡任務已到期消失，控制台重新鎖定", 4500);
+                }, 5 * 60 * 1000);
+            }
+            else if (code === 'TEST300') {
+                subjects.push({ id: Date.now(), name: '兌換碼增加 300 分鐘', totalSeconds: 18000, sessions: 1 });
+                saveSubjects(); 
+                renderDrawer(); 
+                message = "🚀 已加入 300 分鐘記錄並解鎖右側欄";
+            } 
+            else if (code === 'TESTCLEAR') {
+                subjects = subjects.filter(s => !s.name.includes('300 分鐘'));
+                if (subjects.length === 0) {
+                    subjects = [ { id: Date.now(), name: '預設任務', totalSeconds: 0, sessions: 0 } ];
+                }
+                if (!subjects.find(s => s.id == activeSubjectId)) {
+                    activeSubjectId = subjects[0].id;
+                }
+                saveSubjects();
+                renderDrawer();
+                message = "🧹 已清除所有 300 分鐘測試記錄";
+            } 
+            else {
+                showTextToast("❌ 無效的兌換碼", 3000);
+                input.value = '';
+                return;
+            }
+
+            showTextToast(message, 3500);
+            input.value = ''; // 清空輸入框
+        }
+
+        function toggleDrawer(side) {
+            if (side === 'left') {
+                document.getElementById('drawer').classList.toggle('open');
+                document.getElementById('theme-drawer').classList.remove('open');
+            } else {
+                document.getElementById('theme-drawer').classList.toggle('open');
+                document.getElementById('drawer').classList.remove('open');
+                clearBadge();
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.drawer') && !e.target.closest('.menu-btn') && !e.target.closest('.toast')) {
+                document.getElementById('drawer').classList.remove('open');
+                document.getElementById('theme-drawer').classList.remove('open');
+            }
+        });
+
+        function toggle24Hr() {
+            is24HourMode = document.getElementById('chk-24hr').checked;
+            localStorage.setItem('zen24Hour', is24HourMode);
+            if (!isTimerMode) runClock();
+        }
+
+        function toggleShowSeconds() {
+            isShowSecondsMode = document.getElementById('chk-show-seconds').checked;
+            localStorage.setItem('zenShowSeconds', isShowSecondsMode);
+            document.getElementById('sec-text').style.opacity = isShowSecondsMode ? 1 : 0;
+        }
+
+        function initStars() {
+            const container = document.getElementById('stars-layer');
+            container.innerHTML = ''; 
+
+            // 圖層維持 12 層，但每層星星增加到 120 顆（總數 1440 顆，效能依舊順暢）
+            const numLayers = 12; 
+            for (let j = 0; j < numLayers; j++) {
+                let layer = document.createElement('div');
+                layer.className = 'star-layer';
+                
+                let size = (Math.random() * 1.5 + 0.8).toFixed(1); 
+                layer.style.width = size + 'px';
+                layer.style.height = size + 'px';
+                
+                let duration = (Math.random() * 4 + 3).toFixed(1); 
+                let delay = -(Math.random() * 10).toFixed(1); 
+                
+                layer.style.animation = `twinkleLayer ${duration}s infinite alternate ease-in-out ${delay}s`;
+
+                let boxShadows = [];
+                for(let i = 0; i < 120; i++) {
+                    let x = (Math.random() * 300).toFixed(1);
+                    let y = (Math.random() * 300).toFixed(1);
+                    
+                    // 💡 修正：基礎亮度拉高至 0.4 到 1.0 之間，消滅過暗的星星！
+                    let opacity = (Math.random() * 0.6 + 0.4).toFixed(2); 
+                    boxShadows.push(`${x}vw ${y}vh 1px rgba(255, 255, 255, ${opacity})`);
+                }
+                
+                layer.style.boxShadow = boxShadows.join(', ');
+                container.appendChild(layer);
+            }
+        }
+        initStars();
+
+        function renderMeteorCollection() {
+            const list = document.getElementById('meteor-collection-list');
+            if (!list) return;
+            list.innerHTML = '';
+            let hasCollection = false;
+            
+            const METEOR_ORDER = ['火流星', '綠色', '超長', '超亮', '人造衛星' , '星藍螢火蟲' , '晨金螢火蟲' ];
+
+            METEOR_ORDER.forEach(type => {
+                const count = meteorCollection[type] || 0;
+                if (count > 0) {
+                    hasCollection = true;
+                    let displayName = (type === '火流星' || type === '人造衛星' || type.includes('螢火蟲')) ? type : type + '流星'; 
+// 👈 讓名稱包含「螢火蟲」的項目直接顯示原名（不會變成「新藍螢火蟲流星」）
+                    list.innerHTML += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px;">
+                            <span>${displayName}</span>
+                            <span class="playfair-num">${count}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            if (!hasCollection) {
+                list.innerHTML = '<div style="opacity:0.5; font-size:13px; text-align:center; padding:10px;">尚未遇見幸運事件</div>';
+            }
+        }
+        renderMeteorCollection();
+
+        function getMeteorRate() {
+            return parseFloat(localStorage.getItem('zenMeteorRate')) || 750;
+        }
+
+        function meteorLoop() {
+            const isAllowed = document.getElementById('chk-shooting').checked;
+            if (isAllowed && !(isTimerMode && isPaused && !isViewingMode)) {
+                spawnMeteorInstance();
+            }
+            let currentRate = getMeteorRate();
+            let baseAvgDelay = 3600000 / currentRate;
+            let luckReduction = Math.min(luckValue, LUCK_CAP) * 20; 
+            let finalAvgDelay = Math.max(1000, baseAvgDelay - luckReduction);
+            
+            let minDelay = finalAvgDelay * 0.7;
+            let maxDelay = finalAvgDelay * 1.3;
+            setTimeout(meteorLoop, Math.random() * (maxDelay - minDelay) + minDelay);
+        }
+        setTimeout(meteorLoop, 2000);
+
+        function fireflyLoop() {
+            const isAllowed = document.getElementById('chk-fireflies').checked;
+            if (isAllowed && totalDailySecondsGlobal >= 1800 && !(isTimerMode && isPaused && !isViewingMode)) {
+                if (document.querySelectorAll('.firefly').length < 45) {
+                    spawnFireflyInstance();
+                }
+            }
+            setTimeout(fireflyLoop, Math.random() * 800 + 600);
+        }
+        setTimeout(fireflyLoop, 1000);
+
+        function spawnSatellite() {
+            const isStars = document.getElementById('chk-stars').checked;
+            if (isStars && !(isTimerMode && isPaused && !isViewingMode)) {
+                const container = document.getElementById('universe-layer');
+                let sat = document.createElement('div');
+                sat.className = 'satellite';
+                
+                let edge = Math.floor(Math.random() * 4);
+                let startX, startY, endX, endY;
+                if (edge === 0) { startX = Math.random()*100; startY = -5; endX = Math.random()*100; endY = 105; }
+                else if (edge === 1) { startX = 105; startY = Math.random()*100; endX = -5; endY = Math.random()*100; }
+                else if (edge === 2) { startX = Math.random()*100; startY = 105; endX = Math.random()*100; endY = -5; }
+                else { startX = -5; startY = Math.random()*100; endX = 105; endY = Math.random()*100; }
+                
+                sat.style.top = startY + '%';
+                sat.style.left = startX + '%';
+                container.appendChild(sat);
+                
+                meteorCollection['人造衛星'] = (meteorCollection['人造衛星'] || 0) + 1;
+                localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+                renderMeteorCollection();
+
+                let duration = Math.random() * 20000 + 20000; 
+                sat.animate([
+                    { opacity: 0, left: startX + '%', top: startY + '%' },
+                    { opacity: 0.8, left: (startX + (endX-startX)*0.1) + '%', top: (startY + (endY-startY)*0.1) + '%', offset: 0.1 },
+                    { opacity: 0.8, left: (startX + (endX-startX)*0.9) + '%', top: (startY + (endY-startY)*0.9) + '%', offset: 0.9 },
+                    { opacity: 0, left: endX + '%', top: endY + '%' }
+                ], { duration: duration, easing: 'linear', fill: 'forwards' });
+
+                setTimeout(() => { if (sat.parentNode) sat.remove(); }, duration + 200);
+            }
+            
+            let nextDelay = Math.random() * 600000 + 300000; 
+            setTimeout(spawnSatellite, nextDelay);
+        }
+        let initialSatelliteSpawned = false;
+
+        document.getElementById('chk-fireflies').addEventListener('change', (e) => {
+            if (e.target.checked && document.querySelectorAll('.firefly').length === 0) spawnFireflyInstance();
+            updateUniverseBackground();
+        });
+        document.getElementById('chk-shooting').addEventListener('change', (e) => {
+            if (e.target.checked) spawnMeteorInstance();
+            updateUniverseBackground();
+        });
+        document.getElementById('chk-stars').addEventListener('change', (e) => {
+            updateUniverseBackground();
+            if (e.target.checked && !initialSatelliteSpawned) {
+                initialSatelliteSpawned = true;
+                setTimeout(spawnSatellite, 5000); 
+            }
+        });
+        document.getElementById('chk-galaxy').addEventListener('change', updateUniverseBackground);
+
+        function spawnMeteorInstance() {
+            const container = document.getElementById('shooting-stars-layer');
+            let star = document.createElement('div');
+            star.className = 'shooting-star';
+            
+            star.style.left = Math.random() * 100 + 'vw'; 
+            star.style.top = Math.random() * 100 + 'vh';
+            let angle = Math.random() * 360;
+
+            let yesterdayLuckPoints = parseInt(localStorage.getItem('zenYesterdayLuck')) || 0;
+            let baseChance = 7.5; 
+            let bonusChance = yesterdayLuckPoints * 0.07;
+            let totalChance = baseChance + bonusChance;
+            
+            let isSpecial = Math.random() < (totalChance / 100);
+            
+            let length = Math.random() * 70 + 30; 
+            let duration = Math.random() * 2500 + 1500; 
+            let typeClass = 'normal';
+            
+            if (isSpecial) {
+                let rnd = Math.random() * 60; 
+                let type;
+                if (rnd < 5) type = '綠色';         
+                else if (rnd < 20) type = '火流星'; 
+                else if (rnd < 40) type = '超長';   
+                else type = '超亮';                 
+                
+                meteorCollection[type] = (meteorCollection[type] || 0) + 1;
+                localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+                renderMeteorCollection();
+
+                if (type === '火流星') {
+                    typeClass = 'fire-orange'; duration = Math.random() * 2000 + 3500; length = Math.random() * 60 + 80; 
+                } else if (type === '綠色') {
+                    typeClass = 'fire-green'; duration = Math.random() * 1500 + 2500; length = Math.random() * 40 + 40; 
+                } else if (type === '超長') {
+                    typeClass = 'normal'; duration = Math.random() * 1000 + 1200; length = Math.random() * 80 + 120; 
+                } else if (type === '超亮') {
+                    typeClass = 'fire-bright'; duration = Math.random() * 1500 + 2000; length = Math.random() * 15 + 20; 
+                }
+            } else {
+                typeClass = 'normal'; duration = Math.random() * 1000 + 1000; length = Math.random() * 30 + 20;
+            }
+            
+            star.classList.add(typeClass);
+            star.style.width = length + 'px'; 
+            
+            let travelMultiplier = Math.random() * 2 + 4; 
+            let travelDist = length * travelMultiplier;
+            if (travelDist < 200) travelDist = 200; 
+
+            container.appendChild(star);
+
+            star.animate([
+                { opacity: 0, transform: `rotate(${angle}deg) translateX(0px)` },
+                { opacity: 1, transform: `rotate(${angle}deg) translateX(${travelDist * 0.1}px)`, offset: 0.1 },
+                { opacity: 1, transform: `rotate(${angle}deg) translateX(${travelDist * 0.8}px)`, offset: 0.8 },
+                { opacity: 0, transform: `rotate(${angle}deg) translateX(${travelDist}px)` }
+            ], { duration: duration, easing: 'ease-out', fill: 'forwards' });
+
+            setTimeout(() => { if (star.parentNode) star.remove(); }, duration + 200); 
+        }
+
+        function spawnFireflyInstance() {
+            const container = document.getElementById('fireflies-layer');
+    let ff = document.createElement('div');
+    ff.className = 'firefly';
+    let x = Math.random() * 100; let y = Math.random() * 55 + 40; 
+    ff.style.left = x + '%'; ff.style.top = y + '%';
+
+    // 🎯 專注時間超過 60 分鐘 (3600 秒)
+    if (totalDailySecondsGlobal >= 3600) {
+        // 觸發特殊螢火蟲的機率為 5% (0.05)
+        if (Math.random() < 0.05) {
+            // 5% 裡面的 80% (0.8) 是新藍螢火蟲，20% 是沉金螢火蟲
+            let isBlue = Math.random() < 0.8;
+            let rareType = isBlue ? '星藍螢火蟲' : '晨金螢火蟲';
+
+            if (isBlue) {
+                ff.classList.add('rare-blue');
+            } else {
+                ff.classList.add('rare-gold');
+            }
+
+            let currentCount = meteorCollection[rareType] || 0;
+// 檢查是不是第一次獲得（原本數量是 0）
+let isFirstTime = (currentCount === 0);
+
+meteorCollection[rareType] = currentCount + 1;
+localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+renderMeteorCollection();
+
+// 只有第一次才跳出提示
+if (isFirstTime) {
+    showTextToast(`✨ 發現特殊螢火蟲：【${rareType}】！`, 3500);
+}
+        } else if (Math.random() < 0.1) {
+            meteorCollection['螢火蟲'] = (meteorCollection['螢火蟲'] || 0) + 1;
+            localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+            renderMeteorCollection();
+        }
+    } else if (totalDailySecondsGlobal >= 1800) {
+        // 30分鐘到60分鐘之間，一般螢火蟲收集
+        if (Math.random() < 0.08) {
+            meteorCollection['螢火蟲'] = (meteorCollection['螢火蟲'] || 0) + 1;
+            localStorage.setItem('zenMeteorCollection', JSON.stringify(meteorCollection));
+            renderMeteorCollection();
+        }
+    }
+
+    container.appendChild(ff);
+
+            // 判斷這隻是不是特殊（稀有）螢火蟲
+let isRare = ff.classList.contains('rare-blue') || ff.classList.contains('rare-gold');
+
+// 如果是稀有品種，停留時間變為 1.5 倍 (13500毫秒)，步數也稍微增加讓它多飛一下
+let removeTime = isRare ? 13500 : 9000; 
+let maxSteps = isRare ? (6 + Math.floor(Math.random() * 4)) : (4 + Math.floor(Math.random() * 4));
+
+let steps = 0;
+        (function wander() {
+            if (!ff.parentNode || steps >= maxSteps) return;
+            steps++;
+            x = Math.min(98, Math.max(2, x + (Math.random() * 24 - 12)));
+            y = Math.min(96, Math.max(38, y + (Math.random() * 16 - 8)));
+            ff.style.transition = 'left 1.8s ease-in-out, top 1.8s ease-in-out';
+            ff.style.left = x + '%'; ff.style.top = y + '%';
+            setTimeout(wander, 1800);
+        })();
+
+        // 🌟 魔法核心：如果它是沉金螢火蟲，沿路掉落金粉尾焰！
+        let trailInterval = null;
+        if (ff.classList.contains('rare-gold')) {
+            trailInterval = setInterval(() => {
+                if (!ff.parentNode) { clearInterval(trailInterval); return; }
+                
+                let trail = document.createElement('div');
+                trail.className = 'gold-trail';
+                
+                // 抓取沉金螢火蟲「當下瞬間」的實際座標，這樣尾焰才會完美跟隨曲線
+                let rect = ff.getBoundingClientRect();
+                trail.style.left = (rect.left + rect.width / 2) + 'px';
+                trail.style.top = (rect.top + rect.height / 2) + 'px';
+                
+                container.appendChild(trail);
+                
+                // 金粉燃燒完畢後自動清理
+                setTimeout(() => { if (trail.parentNode) trail.remove(); }, 1200);
+            }, 120); // 每 0.12 秒掉落一顆金粉，形成綿密軌跡
+        }
+
+        setTimeout(() => { 
+            if (trailInterval) clearInterval(trailInterval); // 清除掉落計時器
+            if (ff.parentNode) ff.remove(); 
+        }, removeTime);
+        }
+
+        function addTestRecord() {
+            const isChecked = document.getElementById('chk-test-300').checked;
+            if (isChecked) {
+                subjects.push({ id: Date.now(), name: '測試用 300 分鐘任務', totalSeconds: 18000, sessions: 1 });
+                saveSubjects(); renderDrawer(); showTextToast('已加入 300 分鐘測試記錄，解鎖控制台', 3000);
+            }
+        }
+
+        function toggleSettingsView(showSettings) {
+            const viewRecords = document.getElementById('view-records');
+            const viewSettings = document.getElementById('view-settings');
+            if(showSettings) { viewRecords.classList.add('hidden'); viewSettings.classList.add('active'); } 
+            else { viewRecords.classList.remove('hidden'); viewSettings.classList.remove('active'); }
+        }
+        
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => { console.log(err.message); }); } 
+            else { if (document.exitFullscreen) document.exitFullscreen(); }
+        }
+        document.addEventListener('fullscreenchange', () => { document.getElementById('chk-fullscreen').checked = !!document.fullscreenElement; });
+
+        function toggleHideClock() {
+            isClockHidden = !isClockHidden;
+            document.getElementById('btn-hide-clock').classList.toggle('active', isClockHidden);
+            applyClockVisibility();
+        }
+
+        function enterViewMode() {
+            if (isViewingMode) {
+                isViewingMode = false;
+                document.getElementById('btn-view-mode').classList.remove('active');
+                applyClockVisibility();
+                return;
+            }
+            if (isTimerMode && !isPaused) { showTextToast("請先暫停計時，才能進入觀賞模式", 3500); return; }
+            isViewingMode = true; document.getElementById('btn-view-mode').classList.add('active');
+            applyClockVisibility(); showTextToast("進入純淨觀賞模式，按空白鍵可退出", 3000);
+        }
+
+        function applyClockVisibility() {
+            const clock = document.getElementById('clock-area');
+            if (isClockHidden || isViewingMode) { clock.style.opacity = 0; clock.style.pointerEvents = 'none'; } 
+            else { clock.style.opacity = 1; clock.style.pointerEvents = 'auto'; }
+            
+            const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+            updateBacklightAndNorthStar(currentCycle, isTimerMode, isPaused);
+            updateUniverseBackground(); 
+        }
+
+        function showTextToast(text, duration = 4000) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.add('show');
+            if (effectTimeout) clearTimeout(effectTimeout);
+            effectTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration);
+        }
+
+        function showFloatingText(vw, vh, text) {
+            const el = document.createElement('div'); el.className = 'floating-luck-text'; el.innerText = text;
+            el.style.left = `${vw}vw`; el.style.top = `${vh}vh`;
+            document.getElementById('bubbles-container').appendChild(el);
+            setTimeout(() => { if(el.parentNode) el.remove(); }, 1500);
+        }
+
+        function updateEmojiBtn(cycleIndex = 0) {
+            const btn = document.getElementById('toggle-btn');
+            if (!btn) return;
+            if (cycleIndex === 0) { btn.innerText = baseStageIcon; } 
+            else { const idx = Math.max(0, Math.min(cycleIndex - 1, storyLines.length - 1)); btn.innerText = storyLines[idx].icon; }
+        }
+
+        function updateEnvIndicator() {
+            const btn = document.getElementById('env-indicator');
+            if (!btn) return;
+            if (document.getElementById('chk-galaxy').checked) { btn.innerText = '🌀'; btn.title = '特殊事件：極光銀河'; } 
+            else if (document.getElementById('chk-shooting').checked) { btn.innerText = '🌠'; btn.title = '特殊事件：流星劃過'; } 
+            else if (document.getElementById('chk-stars').checked) { btn.innerText = '🌌'; btn.title = '特殊事件：滿天星空'; } 
+            else if (document.getElementById('chk-fireflies').checked) { btn.innerText = '✨'; btn.title = '特殊事件：流螢點點'; } 
+            else { btn.innerText = '⚪'; btn.title = '特殊事件：純淨白光'; }
+        }
+
+        // 判斷是否為第一天使用
+        function isFirstDay() {
+            const today = new Date().toDateString();
+            let installDate = localStorage.getItem('zenInstallDate');
+            if (!installDate) {
+                localStorage.setItem('zenInstallDate', today);
+                return true;
+            }
+            return installDate === today;
+        }
+
+        // 判斷今天右側環境自訂是否已解鎖
+        function isRightDrawerUnlockedToday() {
+    return totalDailySecondsGlobal >= UNLOCK_CUSTOM_THRESHOLD; 
+}
+
+        // 判斷今天右側環境自訂是否已解鎖（僅依據當天總專注時長）
+        function isRightDrawerUnlockedToday() {
+            return totalDailySecondsGlobal >= UNLOCK_CUSTOM_THRESHOLD; // 14400秒 (240分鐘)
+        }
+
+        function checkAndUnlockDrawer(totalSec) {
+            totalDailySecondsGlobal = totalSec;
+            
+            // 1. 右側欄按鈕與抽屜維持「長駐顯示」
+            document.getElementById('theme-drawer').style.display = 'flex';
+            document.getElementById('mobile-right-btn').style.display = 'flex';
+
+            // 2. 檢查當天時長是否達標，更新環境開關的互動狀態
+            const unlocked = isRightDrawerUnlockedToday();
+            const toggleRows = document.querySelectorAll('#theme-drawer .theme-toggle-row');
+
+            toggleRows.forEach(row => {
+                const chk = row.querySelector('input[type="checkbox"]');
+                if (!unlocked) {
+                    row.classList.add('locked');
+                    if (chk) chk.disabled = true;
+                } else {
+                    row.classList.remove('locked');
+                    if (chk) chk.disabled = false;
+                }
+            });
+        }
+        // 💡 用於追蹤 5 分鐘體驗的計時器
+let trialTimeout;
+
+        // 攔截未解鎖時點擊環境開關的提示
+        document.querySelectorAll('#theme-drawer .theme-toggle-row').forEach(row => {
+            row.addEventListener('click', (e) => {
+                if (!isRightDrawerUnlockedToday()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    let remainingSec = UNLOCK_CUSTOM_THRESHOLD - totalDailySecondsGlobal;
+                    let remainingMin = Math.max(1, Math.ceil(remainingSec / 60));
+                    showTextToast(`還需專注 ${remainingMin} 分鐘`, 2500);
+                }
+            });
+        });
+
+        function clearBadge() {
+            document.getElementById('mobile-unlock-badge').style.display = 'none';
+            localStorage.setItem('zenDrawerViewed', 'true');
+        }
+
+        function updateUniverseBackground() {
+            const uLayer = document.getElementById('universe-layer');
+            if (isTimerMode && isPaused && !isViewingMode) { uLayer.style.opacity = 0; return; }
+            uLayer.style.opacity = 1;
+
+            const ff = document.getElementById('chk-fireflies').checked;
+            const st = document.getElementById('chk-stars').checked;
+            const sh = document.getElementById('chk-shooting').checked;
+            const ga = document.getElementById('chk-galaxy').checked;
+
+            document.getElementById('fireflies-layer').style.opacity = ff ? 1 : 0;
+            document.getElementById('stars-container').style.opacity = st ? 1 : 0;
+            document.getElementById('north-star').style.opacity = st ? 1 : 0;
+            document.getElementById('shooting-stars-layer').style.opacity = sh ? 1 : 0;
+            document.getElementById('galaxy-layer').style.opacity = ga ? 1 : 0;
+
+            updateEnvIndicator();
+        }
+
+        function updateMeteorForecast() {
+            let streak = parseInt(localStorage.getItem('zenMeteorStreak')) || 0;
+            let rate = getMeteorRate();
+            
+            // 💡 算出距離 150 分鐘 (THRESHOLD_SHOOTING) 還差幾秒
+            let remainingSec = THRESHOLD_SHOOTING - totalDailySecondsGlobal;
+            let forecastHtml = '';
+
+            if (remainingSec > 0) {
+                // 還沒達到，顯示倒數分鐘數 (無條件進位)
+                let remainingMin = Math.ceil(remainingSec / 60);
+                forecastHtml = `今日流星雨達 <span class="playfair-num" style="color:#fff;">${Math.round(rate)}</span> 顆/hr<br>再專注 <span class="playfair-num" style="color:#fff;">${remainingMin}</span> <span class="sub-time-unit">min</span> 即可遇見！`;
+            } else {
+                // 已經達標，文字變化給予驚喜！
+                forecastHtml = `今日流星雨達 <span class="playfair-num" style="color:#fff;">${Math.round(rate)}</span> 顆/hr<br><span style="color:#ffea00; font-weight:bold; letter-spacing: 1px;">✨ 流星雨已降臨星空！</span>`;
+            }
+            
+            document.getElementById('meteor-forecast-text').innerHTML = forecastHtml;
+            
+            const streakBadge = document.getElementById('meteor-streak-badge');
+            if (streak > 0) { streakBadge.style.display = 'block'; streakBadge.innerHTML = `🔥 ${streak} 連勝`; } 
+            else { streakBadge.style.display = 'none'; }
+
+            document.getElementById('yesterday-luck-val').innerText = yesterdayLuck;
+            let bonus = yesterdayLuck * 0.07;
+            document.getElementById('yesterday-luck-bonus').innerText = (bonus % 1 === 0 ? bonus : bonus.toFixed(1));
+        }
+
+        function checkDailyReset() {
+            const now = new Date();
+            const adjustedDate = new Date(now.getTime() - 6 * 3600 * 1000).toDateString();
+            const lastDate = localStorage.getItem('zenLastDate');
+            
+            if (lastDate !== adjustedDate) {
+                let oldTotal = subjects.reduce((sum, s) => sum + s.totalSeconds, 0);
+                let oldLuck = luckValue;
+
+                if (lastDate) {
+                    let yesterdayFocusValue = (oldTotal / 60);
+                    let streak = parseInt(localStorage.getItem('zenMeteorStreak')) || 0;
+                    let prevRate = parseFloat(localStorage.getItem('zenMeteorRate')) || 750;
+
+                    if (yesterdayFocusValue >= (THRESHOLD_SHOOTING / 60)) {
+                        streak++;
+                        let improvementRatio = yesterdayFocusValue / (THRESHOLD_SHOOTING / 60);
+                        let jump = 64.28 * improvementRatio; 
+                        let newRate = Math.min(1200, prevRate + jump);
+                        localStorage.setItem('zenMeteorRate', newRate);
+                    } else { streak = 0; localStorage.setItem('zenMeteorRate', 750); }
+                    localStorage.setItem('zenMeteorStreak', streak);
+                } else { localStorage.setItem('zenMeteorStreak', 0); localStorage.setItem('zenMeteorRate', 750); }
+
+                highestStageIndex = 0; localStorage.setItem('zenHighestStage', 0); 
+                
+                localStorage.setItem('zenYesterdayLuck', oldLuck);
+                yesterdayLuck = oldLuck; luckValue = 0; localStorage.setItem('zenLuckValue', 0);
+                
+                localStorage.setItem('zenDrawerViewed', 'false'); 
+                subjects.forEach(s => { s.totalSeconds = 0; s.sessions = 0; });
+                saveSubjects(); localStorage.setItem('zenLastDate', adjustedDate);
+                
+                document.getElementById('chk-fireflies').checked = false; document.getElementById('chk-stars').checked = false;
+                document.getElementById('chk-shooting').checked = false; document.getElementById('chk-galaxy').checked = false;
+            } else { highestStageIndex = parseInt(localStorage.getItem('zenHighestStage')) || 0; }
+            updateEmojiBtn(0); updateEnvIndicator();
+            
+            const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            document.getElementById('summary-date').innerText = `${monthNames[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+            
+            updateMeteorForecast();
+        }
+
+        let activeSubjectId = localStorage.getItem('zenActiveSub') || subjects[0].id;
+        if (!subjects.find(s => s.id == activeSubjectId)) activeSubjectId = subjects[0].id;
+
+        function saveSubjects() { localStorage.setItem('zenSubjects', JSON.stringify(subjects)); localStorage.setItem('zenActiveSub', activeSubjectId); }
+
+        function formatTimeLog(sec) {
+            const h = Math.floor(sec / 3600) || 0; const m = Math.floor((sec % 3600) / 60) || 0;
+            if (h > 0) return `<span class="playfair-num">${h}</span> <span class="sub-time-unit">hr</span> <span class="playfair-num">${m}</span> <span class="sub-time-unit">min</span>`;
+            return `<span class="playfair-num">${m}</span> <span class="sub-time-unit">min</span>`;
+        }
+
+        function renderDrawer() {
+            const list = document.getElementById('subject-list'); list.innerHTML = '';
+            let totalDailySessions = 0; let totalDailySeconds = 0;
+
+            subjects.forEach(sub => {
+                sub.sessions = sub.sessions || 0; totalDailySessions += sub.sessions; totalDailySeconds += sub.totalSeconds;
+                const isRunning = (isTimerMode && !isPaused && sub.id == activeSubjectId);
+                const runningTag = isRunning ? `<span class="running-tag">(進行中)</span>` : '';
+                const stageIndex = Math.floor(sub.totalSeconds / SECONDS_PER_CYCLE);
+                let dotColor = 'rgba(181, 181, 181, 0.8)'; 
+                if (stageIndex > 0) dotColor = storyLines[Math.min(stageIndex - 1, storyLines.length - 1)].color; 
+
+                const div = document.createElement('div');
+                div.className = `subject-item ${sub.id == activeSubjectId ? 'active' : ''}`;
+                div.draggable = true; div.dataset.id = sub.id; 
+
+                div.addEventListener('dragstart', handleDragStart); div.addEventListener('dragover', handleDragOver);
+                div.addEventListener('dragenter', handleDragEnter); div.addEventListener('dragleave', handleDragLeave);
+                div.addEventListener('drop', handleDrop);
+
+                div.onclick = function(e) { if(!e.target.closest('.sub-action-btn')) selectSubject(sub.id); };
+
+                const isDeletePending = (deletePendingId === sub.id);
+                const deleteBtnHtml = isDeletePending ? `<button class="sub-action-btn confirm-delete" onclick="executeDelete(${sub.id}, event)">確定刪除</button>` : `<button class="sub-action-btn delete" onclick="requestDelete(${sub.id}, event)">×</button>`;
+
+                div.innerHTML = `
+                    <div class="sub-info">
+                        <span class="sub-name"><span class="zen-dot" style="color: ${dotColor};">●</span>${sub.name}${runningTag}</span>
+                        <span class="sub-time"><span class="sub-time-cn">累計</span> <span class="playfair-num" style="font-size:15px; margin:0 3px;">${sub.sessions}</span> <span class="sub-time-cn">次</span> / ${formatTimeLog(sub.totalSeconds)}</span>
+                    </div>
+                    <div class="sub-actions">${isDeletePending ? '' : `<button class="sub-action-btn edit" onclick="renameSubject(${sub.id}, event)">✎</button>`}${deleteBtnHtml}</div>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('total-sessions').innerText = totalDailySessions;
+            document.getElementById('total-time').innerHTML = formatTimeLog(totalDailySeconds);
+            document.getElementById('luck-value').innerText = luckValue;
+            
+            // 計算並顯示今日幸運值帶來的流星加成
+            let todayBonus = luckValue * 0.07;
+            let todayBonusEl = document.getElementById('today-luck-bonus');
+            if(todayBonusEl) {
+                todayBonusEl.innerText = (todayBonus % 1 === 0 ? todayBonus : todayBonus.toFixed(1));
+            }
+            
+            totalDailySecondsGlobal = totalDailySeconds;
+            checkAndUnlockDrawer(totalDailySeconds); updateUniverseBackground();updateMeteorForecast();
+        }
+
+        function renameSubject(id, e) { e.stopPropagation(); const sub = subjects.find(s => s.id == id); if (!sub) return; const newName = prompt("重新命名任務：", sub.name); if (newName !== null && newName.trim() !== '') { sub.name = newName.trim(); saveSubjects(); renderDrawer(); } }
+        function requestDelete(id, e) { 
+    e.stopPropagation(); 
+    if (subjects.length <= 1) { showTextToast("至少需要保留一個任務！", 3000); return; } 
+
+    // 💡 新增：防止刪除正在計時（秒數大於0）的當前任務
+    if (id == activeSubjectId && timerSeconds > 0) { 
+        showTextToast("⚠️ 無法刪除當前任務！請先右鍵雙擊歸零計時器", 3500); 
+        return; 
+    }
+
+    deletePendingId = id; renderDrawer(); 
+    setTimeout(() => { if (deletePendingId === id) { deletePendingId = null; renderDrawer(); } }, 3000); 
+}
+        function executeDelete(id, e) { e.stopPropagation(); subjects = subjects.filter(s => s.id !== id); if (activeSubjectId == id) activeSubjectId = subjects[0].id; deletePendingId = null; saveSubjects(); renderDrawer(); showTextToast("任務已刪除", 2000); }
+
+        let draggedItemId = null;
+        function handleDragStart(e) { draggedItemId = this.dataset.id; e.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging'); }
+        function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+        function handleDragEnter(e) { this.classList.add('over'); }
+        function handleDragLeave(e) { this.classList.remove('over'); }
+        function handleDrop(e) {
+            e.stopPropagation(); this.classList.remove('over');
+            document.querySelectorAll('.subject-item').forEach(el => el.classList.remove('dragging', 'over'));
+            const targetId = this.dataset.id;
+            if (draggedItemId && draggedItemId !== targetId) {
+                const draggedIndex = subjects.findIndex(s => s.id == draggedItemId);
+                const targetIndex = subjects.findIndex(s => s.id == targetId);
+                const [draggedItem] = subjects.splice(draggedIndex, 1);
+                subjects.splice(targetIndex, 0, draggedItem);
+                saveSubjects(); renderDrawer();
+            }
+            return false;
+        }
+
+        function selectSubject(id) { if (isTimerMode && !isPaused && id !== activeSubjectId) { showTextToast('⚠️ 切換任務前，請先點擊時鐘暫停計時', 3000); return; } activeSubjectId = id; saveSubjects(); renderDrawer(); }
+        function addSubject() { const input = document.getElementById('new-sub-input'); const name = input.value.trim(); if (!name) return; subjects.push({ id: Date.now(), name: name, totalSeconds: 0, sessions: 0 }); activeSubjectId = subjects[subjects.length-1].id; input.value = ''; saveSubjects(); renderDrawer(); }
+        document.getElementById('new-sub-input').addEventListener('keypress', function(e) { if (e.key === 'Enter') addSubject(); });
+
+        function updateBacklightAndNorthStar(cycleIndex, isActive, isPausedLocal) {
+            const backlight = document.getElementById('backlight'); const root = document.documentElement;
+            if (!isActive || isClockHidden || isViewingMode) { backlight.style.visibility = 'hidden'; backlight.style.animationPlayState = 'paused'; return; }
+            backlight.style.visibility = 'visible';
+
+            let stageColor; let glowColor;
+            if (cycleIndex === 0) { stageColor = '#ffffff'; glowColor = 'rgba(255, 255, 255, 0.4)'; } 
+            else { const stage = storyLines[Math.min(cycleIndex - 1, storyLines.length - 1)]; stageColor = stage.color; glowColor = stage.glow; }
+            
+            if (document.getElementById('chk-galaxy').checked) stageColor = '#b8a6ff'; 
+
+            root.style.setProperty('--current-stage-color', stageColor); backlight.style.setProperty('--backlight-color', glowColor); backlight.style.opacity = 0.8;
+            if (isPausedLocal) backlight.style.animationPlayState = 'paused'; else backlight.style.animationPlayState = 'running';
+        }
+
+        function updateUnit(id, newValue) {
+            const unit = document.getElementById(id); const currentValue = unit.dataset.value;
+            if (currentValue === newValue) return; unit.dataset.value = newValue;
+            if (!currentValue || currentValue === "") { unit.innerHTML = `<div class="card top"><span>${newValue}</span></div><div class="card bottom"><span>${newValue}</span></div>`; return; }
+
+            const staticTop = unit.querySelector('.card.top:not(.flip-top)'); if (staticTop) staticTop.innerHTML = `<span>${newValue}</span>`;
+            const flipTop = document.createElement('div'); flipTop.className = `card top flip-top`; flipTop.innerHTML = `<span>${currentValue}</span>`;
+            const flipBottom = document.createElement('div'); flipBottom.className = `card bottom flip-bottom`; flipBottom.innerHTML = `<span>${newValue}</span>`;
+            unit.appendChild(flipTop); unit.appendChild(flipBottom);
+            setTimeout(() => {
+                const staticBottom = unit.querySelector('.card.bottom:not(.flip-bottom)'); if (staticBottom) staticBottom.innerHTML = `<span>${newValue}</span>`;
+                if (flipTop.parentNode) flipTop.remove(); if (flipBottom.parentNode) flipBottom.remove();
+            }, 800);
+        }
+
+        function updateWater(secText, progress, isTimerActive) {
+            document.getElementById('sec-text').innerText = secText;
+            const container = document.getElementById('water-container');
+            const wave1 = document.getElementById('water-wave-1'); const wave2 = document.getElementById('water-wave-2');
+            
+            if (!isTimerActive) { 
+                container.style.opacity = 0; 
+            } else {
+                container.style.opacity = 1; 
+            }
+            
+            const topValue = 100 - (progress * 100);
+            wave1.style.transition = 'top 1s linear'; wave2.style.transition = 'top 1s linear'; wave1.style.top = `${topValue}%`; wave2.style.top = `${topValue}%`;
+        }
+
+        function spawnBubbles() {
+            const container = document.getElementById('bubbles-container'); 
+            container.innerHTML = ''; 
+            hideQuote(); 
+
+            let activeSlots = [];
+            let now = Date.now();
+            for (let i = 0; i < 3; i++) {
+                if (now > bubbleCooldowns[i]) activeSlots.push(i);
+            }
+
+            if (activeSlots.length === 0) {
+                showQuote();
+                return;
+            }
+
+            let shuffled = [...baseBubbleTasks].sort(() => 0.5 - Math.random()); 
+            
+            activeSlots.forEach((slotIndex, i) => {
+                let taskText = shuffled[i];
+                let overlap = true; let posX, posY; let attempts = 0;
+                while(overlap && attempts < 50) { 
+                    posX = Math.random() * 80 + 5; posY = Math.random() * 80 + 5; 
+                    if (!(posX > 20 && posX < 80 && posY > 20 && posY < 80)) overlap = false; 
+                    attempts++;
+                }
+
+                const isLarge = Math.random() > 0.5; const sizeClass = isLarge ? 'lg' : 'sm';
+                const wrapper = document.createElement('div'); wrapper.className = 'bubble-wrapper'; wrapper.style.left = `${posX}vw`; wrapper.style.top = `${posY}vh`; wrapper.style.animationDelay = `${Math.random() * 2}s`;
+                const bubble = document.createElement('div'); bubble.className = `soul-bubble ${sizeClass}`; bubble.innerText = taskText; bubble.dataset.clicks = 0;
+                bubble.dataset.slot = slotIndex;
+
+                bubble.onclick = function() {
+                    let clicks = parseInt(this.dataset.clicks) + 1; this.dataset.clicks = clicks; this.style.transform = `scale(${1 - clicks * 0.1})`; 
+                    if (clicks >= 3) {
+                        wrapper.classList.remove('show'); setTimeout(() => wrapper.remove(), 500);
+                        
+                        bubbleCooldowns[slotIndex] = Date.now() + BUBBLE_COOLDOWN_MS;
+
+                        const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+                        const burstColor = currentCycle > 0 ? storyLines[Math.min(currentCycle - 1, storyLines.length - 1)].color : '#ffffff';
+                        createBubbleBurst(posX, posY, burstColor, isLarge);
+                        let r = Math.random(); let addedLuck = (r < 0.65) ? 1 : (r < 0.95 ? 2 : 3); luckValue += addedLuck; localStorage.setItem('zenLuckValue', luckValue); renderDrawer();
+                        showFloatingText(posX, posY, `+${addedLuck} 幸運值`);
+                    }
+                };
+                wrapper.appendChild(bubble); container.appendChild(wrapper); setTimeout(() => wrapper.classList.add('show'), 50 * (i+1));
+            });
+        }
+
+        function createBubbleBurst(vw, vh, color, isLarge) {
+            const burst = document.createElement('div'); burst.className = `bubble-burst`; burst.style.left = `${vw + (isLarge ? 6 : 5)}vw`; burst.style.top = `${vh + (isLarge ? 6 : 5)}vh`;
+            burst.style.setProperty('--burst-color', color); burst.style.setProperty('--burst-size', isLarge ? '200px' : '130px');
+            document.getElementById('bubbles-container').appendChild(burst); setTimeout(() => { if (burst.parentNode) burst.remove(); }, 600);
+        }
+
+        function clearBubbles() { 
+            const wrappers = document.querySelectorAll('.bubble-wrapper'); 
+            wrappers.forEach(w => w.classList.remove('show')); 
+            setTimeout(() => document.getElementById('bubbles-container').innerHTML = '', 800); 
+        }
+
+        function showQuote() {
+            const container = document.getElementById('quote-container');
+            const randomQuote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+            container.innerText = randomQuote;
+            container.classList.add('show');
+        }
+
+        function hideQuote() {
+            const container = document.getElementById('quote-container');
+            container.classList.remove('show');
+        }
+
+        function runClock() {
+            const now = new Date();
+            let h = now.getHours(); const m = now.getMinutes(); const s = now.getSeconds();
+            const ampm = h >= 12 ? 'PM' : 'AM'; 
+            
+            if (!is24HourMode) {
+                h = h % 12; h = h ? h : 12;
+            }
+
+            updateUnit('hours', h.toString().padStart(2, '0')); 
+            updateUnit('minutes', m.toString().padStart(2, '0'));
+            
+            const ampmEl = document.getElementById('ampm');
+            ampmEl.innerText = ampm; 
+            
+            if(is24HourMode) {
+                ampmEl.style.opacity = 0;
+            } else {
+                ampmEl.style.opacity = 1; 
+            }
+            
+            updateWater(s.toString().padStart(2, '0'), 0, false); 
+        }
+
+        function runTimer() {
+            if (isPaused) return; 
+            if (currentSessionSubjectId !== activeSubjectId) {
+                const activeSub = subjects.find(s => s.id == activeSubjectId);
+                if (activeSub) activeSub.sessions = (activeSub.sessions || 0) + 1;
+                currentSessionSubjectId = activeSubjectId; saveSubjects(); renderDrawer(); 
+            }
+
+            timerSeconds += 1;
+
+// 💡 新增：隨時記錄目前的計時秒數與計時模式狀態
+localStorage.setItem('zenTimerSeconds', timerSeconds);
+localStorage.setItem('zenIsTimerMode', isTimerMode);
+            const activeSub = subjects.find(s => s.id == activeSubjectId);
+            if (activeSub) activeSub.totalSeconds += 1;
+            
+            saveSubjects();
+
+            const currentTotal = subjects.reduce((sum, s) => sum + s.totalSeconds, 0); const prevTotal = currentTotal - 1;
+            if (prevTotal < UNLOCK_CUSTOM_THRESHOLD && currentTotal >= UNLOCK_CUSTOM_THRESHOLD) { showTextToast("🎉 恭喜解鎖銀河階段！右側控制面板已為你開啟", 6000); renderDrawer(); } 
+            else if (timerSeconds % 60 === 0) {  renderDrawer(); }
+            
+            const h = Math.floor(timerSeconds / 3600); const m = Math.floor((timerSeconds % 3600) / 60); const s = timerSeconds % 60;
+            
+            if (timerSeconds > 0 && timerSeconds % SECONDS_PER_CYCLE === 0) {
+                const cycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+                if (cycle > highestStageIndex) { highestStageIndex = Math.min(cycle, storyLines.length); localStorage.setItem('zenHighestStage', highestStageIndex); }
+            }
+
+            updateUnit('hours', h.toString().padStart(2, '0')); updateUnit('minutes', m.toString().padStart(2, '0'));
+            
+            const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+            const progress = (timerSeconds % SECONDS_PER_CYCLE) / SECONDS_PER_CYCLE;
+            updateEmojiBtn(currentCycle); 
+            
+            updateWater(s.toString().padStart(2, '0'), progress, true); updateBacklightAndNorthStar(currentCycle, true, false);
+        }
+
+        function toggleMode() {
+            isTimerMode = !isTimerMode;
+            localStorage.setItem('zenIsTimerMode', isTimerMode);
+            localStorage.setItem('zenTimerSeconds', timerSeconds);
+            const ampmEl = document.getElementById('ampm');
+            const secondsUnit = document.getElementById('seconds');
+            
+            if (isTimerMode) {
+                clearInterval(clockInterval);
+                clearInterval(timerInterval);
+                ampmEl.style.opacity = 0; 
+                secondsUnit.classList.add('flask-shape'); 
+                
+                const h = Math.floor(timerSeconds / 3600); const m = Math.floor((timerSeconds % 3600) / 60); const s = timerSeconds % 60;
+                updateUnit('hours', h.toString().padStart(2, '0')); updateUnit('minutes', m.toString().padStart(2, '0'));
+                
+                const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+                const progress = timerSeconds === 0 ? 0 : (timerSeconds % SECONDS_PER_CYCLE) / SECONDS_PER_CYCLE;
+                
+                updateWater(s.toString().padStart(2, '0'), progress, true);
+                
+                applyClockVisibility(); updateUniverseBackground(); updateEmojiBtn(currentCycle);
+                timerInterval = setInterval(runTimer, 1000); renderDrawer(); clearBubbles(); hideQuote();
+            } else {
+    clearInterval(timerInterval);
+    // 💡 只切換模式狀態，絕對不刪除時間紀錄
+    localStorage.setItem('zenIsTimerMode', 'false'); 
+    currentSessionSubjectId = null; saveSubjects(); renderDrawer(); 
+    // ... 後面維持不變 ...
+                secondsUnit.classList.remove('flask-shape'); 
+                
+                isClockHidden = false; isViewingMode = false;
+                document.getElementById('btn-hide-clock').classList.remove('active'); document.getElementById('btn-view-mode').classList.remove('active');
+                
+                applyClockVisibility(); clearBubbles(); hideQuote(); updateUniverseBackground(); updateEmojiBtn(0);
+                runClock(); clockInterval = setInterval(runClock, 1000);
+            }
+        }
+
+        function togglePause(e) {
+            if (!isTimerMode) return; 
+            if (e && e.type === 'contextmenu') return; 
+            
+            if (isPaused && isViewingMode) { isViewingMode = false; document.getElementById('btn-view-mode').classList.remove('active'); applyClockVisibility(); }
+
+            isPaused = !isPaused;localStorage.setItem('zenTimerSeconds', timerSeconds); resetPending = false; if (effectTimeout) clearTimeout(effectTimeout);
+            const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+
+            if (isPaused) {
+                const isGalaxyUnlocked = totalDailySecondsGlobal > UNLOCK_CUSTOM_THRESHOLD;
+                if (isGalaxyUnlocked) { showTextToast('計時已暫停（已解鎖銀河階段與右側面板）', 5000); } 
+                else {
+                    let nextCycleDiff = SECONDS_PER_CYCLE - (timerSeconds % SECONDS_PER_CYCLE);
+                    let nextStoryIndex = currentCycle === 0 ? 0 : currentCycle - 1; let nextStoryName = nextStoryIndex < storyLines.length ? storyLines[nextStoryIndex].name : '巔峰狀態';
+                    let milestones = [ { name: nextStoryName, diff: nextCycleDiff } ];
+                    if (timerSeconds < THRESHOLD_FIREFLIES) milestones.push({ name: '流螢模式', diff: THRESHOLD_FIREFLIES - timerSeconds });
+                    else if (timerSeconds < THRESHOLD_STARS) milestones.push({ name: '星空模式', diff: THRESHOLD_STARS - timerSeconds });
+                    else if (timerSeconds < THRESHOLD_SHOOTING) milestones.push({ name: '流星模式', diff: THRESHOLD_SHOOTING - timerSeconds });
+                    milestones.push({ name: '銀河解鎖', diff: (UNLOCK_CUSTOM_THRESHOLD + 1) - totalDailySecondsGlobal });
+                    milestones.sort((a, b) => a.diff - b.diff); const closest = milestones[0]; const diffInMinutes = Math.max(1, Math.ceil(closest.diff / 60));
+                    showTextToast(`暫停中，約 ${diffInMinutes} 分鐘後進入 ${closest.name} `, 4500);
+                }
+                updateBacklightAndNorthStar(currentCycle, true, true); updateUniverseBackground(); saveSubjects(); spawnBubbles(); 
+            } else {
+                showTextToast('計時繼續', 2500); updateBacklightAndNorthStar(currentCycle, true, false); updateUniverseBackground(); clearBubbles(); hideQuote(); renderDrawer(); 
+            }
+        }
+
+        function resetTimer(e) {
+            e.preventDefault(); if (!isTimerMode) return;
+            if (!isPaused) { showTextToast('請先暫停計時，再進行重置', 2500); return; }
+            
+            if (!resetPending) {
+                resetPending = true; showTextToast('再點擊一次右鍵確認歸零 (重置後將回到初始白光與種子階段)', 3500); resetTimeout = setTimeout(() => { resetPending = false; }, 3500);
+            } else {
+                clearTimeout(resetTimeout); resetPending = false; timerSeconds = 0;localStorage.setItem('zenTimerSeconds', 0); // 💡 確保手動歸零時，暫存檔也被清空
+localStorage.setItem('zenIsTimerMode', 'false');localStorage.removeItem('zenIsTimerMode');
+                currentSessionSubjectId = null; 
+                document.getElementById('chk-fireflies').checked = false; document.getElementById('chk-stars').checked = false;
+                document.getElementById('chk-shooting').checked = false; document.getElementById('chk-galaxy').checked = false;
+                
+                document.getElementById('seconds').classList.add('flask-shape');
+
+                updateUnit('hours', '00'); updateUnit('minutes', '00'); updateWater('00', 0, true); updateBacklightAndNorthStar(0, true, true); updateEmojiBtn(0);
+                showTextToast('計時已歸零，點擊左鍵或空白鍵開始', 3000); renderDrawer(); updateUniverseBackground(); hideQuote();
+            }
+        }
+        
+        document.addEventListener('keydown', function(e) { if (e.code === 'Space') { if (document.activeElement && document.activeElement.tagName === 'INPUT') return; e.preventDefault(); togglePause(e); } });
+        
+        checkDailyReset();
+        // 💡 對抗瀏覽器背景休眠：自動補回流失的時間
+        let lastHiddenTime = Date.now();
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // 網頁被縮小或切換到背景時，記下當下的時間
+                lastHiddenTime = Date.now();
+            } else {
+                // 切換回網頁時
+                if (isTimerMode && !isPaused) {
+                    // 算出你在背景待了幾秒
+                    let passedSec = Math.floor((Date.now() - lastHiddenTime) / 1000);
+                    
+                    // 如果流失超過 2 秒，就瞬間把時間補進去！
+                    if (passedSec > 2) { 
+                        timerSeconds += passedSec;
+                        const activeSub = subjects.find(s => s.id == activeSubjectId);
+                        if (activeSub) {
+                            activeSub.totalSeconds += passedSec;
+                            saveSubjects();
+                        }
+                        
+                        // 強制刷新時鐘畫面，讓你看到時間瞬間跳回來
+                        const h = Math.floor(timerSeconds / 3600); 
+                        const m = Math.floor((timerSeconds % 3600) / 60); 
+                        updateUnit('hours', h.toString().padStart(2, '0')); 
+                        updateUnit('minutes', m.toString().padStart(2, '0'));
+                        renderDrawer();
+                    }
+                }
+            }
+        });
+
+        // 💡 檢查是否有過期或還沒過期的體驗任務
+      let tkExpire = localStorage.getItem('zenTK888Expire');
+      if (tkExpire) {
+          let timeLeft = parseInt(tkExpire) - Date.now();
+          if (timeLeft <= 0) {
+              // 已經過期了，直接刪除
+              subjects = subjects.filter(s => !s.name.includes('體驗卡任務'));
+              localStorage.removeItem('zenTK888Expire');
+              saveSubjects();
+          } else {
+              // 還沒過期，重新接上剩下的定時器
+              setTimeout(() => {
+                  subjects = subjects.filter(s => !s.name.includes('體驗卡任務'));
+                  localStorage.removeItem('zenTK888Expire');
+                  if (!subjects.find(s => s.id == activeSubjectId)) activeSubjectId = subjects[0].id;
+                  saveSubjects();
+                  renderDrawer();
+                  showTextToast("⏳ 體驗卡任務已到期消失，控制台重新鎖定", 4500);
+              }, timeLeft);
+          }
+      }
+
+         renderDrawer();  
+
+document.getElementById('toggle-btn').addEventListener('click', toggleMode); 
+document.getElementById('clock-area').addEventListener('click', togglePause); 
+document.getElementById('clock-area').addEventListener('contextmenu', resetTimer); 
+
+// 💡 判斷：如果是重新整理後帶有計時狀態，直接還原畫面但不自動開始跑
+if (isTimerMode) {
+    const secondsUnit = document.getElementById('seconds');
+    secondsUnit.classList.add('flask-shape');
+    document.getElementById('ampm').style.opacity = 0;
+
+    const h = Math.floor(timerSeconds / 3600); 
+const m = Math.floor((timerSeconds % 3600) / 60); 
+const s = timerSeconds % 60;
+
+// 💡 修正：初次載入時，直接幫翻牌器賦予初始 DOM 結構，數字才會顯示出來！
+const hoursUnit = document.getElementById('hours');
+const minutesUnit = document.getElementById('minutes');
+
+hoursUnit.dataset.value = h.toString().padStart(2, '0');
+hoursUnit.innerHTML = `<div class="card top"><span>${h.toString().padStart(2, '0')}</span></div><div class="card bottom"><span>${h.toString().padStart(2, '0')}</span></div>`;
+    
+    updateUnit('hours', h.toString().padStart(2, '0')); 
+    updateUnit('minutes', m.toString().padStart(2, '0'));
+    
+    const currentCycle = Math.floor(timerSeconds / SECONDS_PER_CYCLE);
+    const progress = timerSeconds === 0 ? 0 : (timerSeconds % SECONDS_PER_CYCLE) / SECONDS_PER_CYCLE;
+
+    updateWater(s.toString().padStart(2, '0'), progress, true);
+    applyClockVisibility(); 
+    updateUniverseBackground(); 
+    updateEmojiBtn(currentCycle);
+    showTextToast('已恢復上次計時狀態（目前為暫停）', 3000);
+    timerInterval = setInterval(runTimer, 1000);
+} else {
+    runClock(); 
+    clockInterval = setInterval(runClock, 1000);
+}
+    </script>
+</body>
+</html>
